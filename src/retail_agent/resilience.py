@@ -143,11 +143,13 @@ class ModelSlot:
     name: str
     model: InvokableModel
     limiter: Limiter
-    breaker: CircuitBreaker = field(init=False)
+    # Pass a shared breaker so every session of the process sees the same model health.
+    breaker: CircuitBreaker = field(default=None)  # type: ignore[assignment]
     cooldown_s: float = 60.0
 
     def __post_init__(self) -> None:
-        self.breaker = CircuitBreaker(f"llm:{self.name}", failure_threshold=2, cooldown_s=self.cooldown_s)
+        if self.breaker is None:
+            self.breaker = CircuitBreaker(f"llm:{self.name}", failure_threshold=2, cooldown_s=self.cooldown_s)
 
 
 class FallbackChatModel:

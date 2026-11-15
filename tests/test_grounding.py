@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pandas as pd
 import pytest
-from fakes import FakeRunner, ScriptedModel, ask, make_agent, sql_call, tool_call
+from fakes import FakeRunner, ScriptedModel, SequenceRunner, ask, make_agent, sql_call, tool_call
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from retail_agent.agent.grounding import figures, ungrounded_figures
@@ -94,6 +94,7 @@ def test_unbacked_figures_get_a_visible_caveat_and_are_saved_with_it(settings):
         sql_call("SELECT COUNT(*) AS n FROM users"),
         tool_call("save_report", "c2", title="California"),
         AIMessage("California has 3677 users and spent $4,068,574.68 in 2025."),
+        AIMessage("California has 3677 users and spent $4,068,574.68 in 2025."),  # the revision keeps it
     )
     session, graph = make_agent(settings, model, FakeRunner(df=pd.DataFrame({"n": [3677]})))
 
@@ -103,3 +104,52 @@ def test_unbacked_figures_get_a_visible_caveat_and_are_saved_with_it(settings):
     assert "Automatic check: these figures do not appear" in state["messages"][-1].text
     [report] = session.reports.find("alice")
     assert "$4,068,574.68." in report.body and "Automatic check" in report.body
+
+
+def test_unbacked_figures_trigger_one_revision_that_can_fix_the_answer(settings):
+    model = ScriptedModel(
+        sql_call("SELECT COUNT(*) AS n FROM orders"),
+        AIMessage("You have 3 orders worth $9,999."),
+        AIMessage("You have 3 orders; their value was not part of the query."),
+    )
+    _, graph = make_agent(settings, model, FakeRunner(df=pd.DataFrame({"n": [3]})))
+
+    state = ask(graph, "How many orders?")
+
+    feedback = model.calls[2][-1]
+    assert isinstance(feedback, HumanMessage) and "[Automatic check, not from the user]" in feedback.text
+    assert "$9,999" in feedback.text  # the model is told which figures and sees its draft
+    assert state["revision"]["unbacked"] == ["$9,999"] and state["ungrounded"] == []
+    assert state["messages"][-1].text == "You have 3 orders; their value was not part of the query."
+    assert not any("$9,999" in m.text for m in state["messages"])  # the draft is not kept
+    assert not any("Automatic check" in m.text for m in state["messages"])  # nor the feedback
+
+
+def test_the_revision_may_query_the_missing_figure(settings):
+    model = ScriptedModel(
+        sql_call("SELECT COUNT(*) AS n FROM orders", "c1"),
+        AIMessage("You have 3 orders worth $9,999."),
+        sql_call("SELECT SUM(sale_price) AS revenue FROM order_items", "c2"),
+        AIMessage("You have 3 orders worth $9,999."),
+    )
+    runner = SequenceRunner(pd.DataFrame({"n": [3]}), pd.DataFrame({"revenue": [9999.0]}))
+    _, graph = make_agent(settings, model, runner)
+
+    state = ask(graph, "How many orders and how much revenue?")
+
+    assert state["ungrounded"] == [] and "Automatic check" not in state["messages"][-1].text
+    assert len(runner.calls) == 2
+
+
+def test_only_one_revision_per_turn(settings):
+    model = ScriptedModel(
+        sql_call("SELECT COUNT(*) AS n FROM orders"),
+        AIMessage("Worth $9,999."),
+        AIMessage("Worth $8,888."),
+    )
+    _, graph = make_agent(settings, model, FakeRunner(df=pd.DataFrame({"n": [3]})))
+
+    state = ask(graph, "How many orders?")
+
+    assert len(model.calls) == 3  # draft, one revision, no more
+    assert state["ungrounded"] == ["$8,888"] and "Automatic check" in state["messages"][-1].text

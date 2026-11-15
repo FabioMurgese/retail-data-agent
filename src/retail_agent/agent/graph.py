@@ -11,7 +11,10 @@
                 tools ---------+  run_sql (guard -> BigQuery -> mask), report library, preferences;
                   | (no tool calls)   delete_reports pauses the graph for human confirmation
                   v
-               finalize           mask PII; flag figures not found in query results; save if asked
+                verify ------------> agent, once per turn, if the answer has figures that no
+                  |                  query result backs: query them, remove them, or explain them
+                  v
+               finalize           mask PII; caveat for figures still unbacked; save if asked
                   v
                  END
 
@@ -33,7 +36,7 @@ from collections.abc import Sequence
 from datetime import date
 from typing import Any
 
-from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, AnyMessage, HumanMessage, RemoveMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.memory import InMemorySaver
@@ -55,6 +58,12 @@ TOKEN_BUDGET_REPLY = (
     "I stopped because this question was taking too much work in one go. Try a narrower question, "
     "for example one period or one metric at a time."
 )
+REVISION_NOTE = (
+    "[Automatic check, not from the user] Your draft answer contains figures that do not appear in any "
+    "query result for this question: {figures}. Never present numbers you have not queried. Run the "
+    "queries that produce them, or rewrite the answer without them; a figure derived from the results "
+    "(a difference, a rate, a share) is fine if you say how you computed it. Your draft was:\n\n{draft}"
+)
 TOOL_FAILURE = (
     "This step failed because of an internal error, not because of your input. Do not retry it; "
     "continue without it if you can, and tell the user what could not be done."
@@ -72,6 +81,8 @@ class AgentState(MessagesState):
     saved_report: dict[str, Any] | None
     degraded: str | None  # why the turn ended early: llm_unavailable / llm_auth / token_budget ...
     ungrounded: list[str]  # figures in the answer not found in this turn's query results
+    revision_note: str | None  # verify -> agent: feedback for the one allowed revision of this turn
+    revision: dict[str, Any] | None  # what triggered the revision (for observability)
 
 
 def build_graph(
@@ -94,6 +105,8 @@ def build_graph(
             "degraded": None,
             "ungrounded": [],  # every per-turn field is reset here, or a blocked turn inherits the last one
             "retrieval": None,
+            "revision_note": None,
+            "revision": None,
         }
         if not verdict.allowed:
             update["messages"] = [AIMessage(content=verdict.reply)]
@@ -125,11 +138,27 @@ def build_graph(
         if turn_tokens(state["messages"]) >= settings.max_tokens_per_turn:
             return {"messages": [AIMessage(TOKEN_BUDGET_REPLY)], "degraded": "token_budget"}
         messages = [SystemMessage(state["system_prompt"]), *model_view(state["messages"])]
+        if note := state.get("revision_note"):
+            messages.append(HumanMessage(note))  # sent once, never stored in the conversation
         try:
-            return {"messages": [model.invoke(messages)]}
+            return {"messages": [model.invoke(messages)], "revision_note": None}
         except LLMUnavailableError as exc:
             log.warning("agent: LLM unavailable (%s) trace=%s", exc, state.get("trace_id"))
             return {"messages": [AIMessage(exc.user_message)], "degraded": f"llm_{exc.kind}"}
+
+    def verify(state: AgentState) -> dict[str, Any]:
+        """Self-correction for numbers: one revision per turn if the draft has unbacked figures."""
+        if state.get("degraded") or state.get("revision"):
+            return {}
+        draft = state["messages"][-1]
+        if not (missing := ungrounded_figures(draft.text, state["messages"])):
+            return {}
+        log.info("verify: revising draft with unbacked figures %s (trace %s)", missing, state.get("trace_id"))
+        return {
+            "messages": [RemoveMessage(id=draft.id)],  # the draft is replaced by the revised answer
+            "revision_note": REVISION_NOTE.format(figures="; ".join(missing), draft=draft.text),
+            "revision": {"unbacked": missing, "draft": session.masker.mask_text(draft.text)[0][:2000]},
+        }
 
     def finalize(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
         original = state["messages"][-1]
@@ -168,13 +197,15 @@ def build_graph(
     graph.add_node("prepare_context", prepare_context)
     graph.add_node("agent", agent)
     graph.add_node("tools", ToolNode(session.tools, handle_tool_errors=_tool_error))
+    graph.add_node("verify", verify)
     graph.add_node("finalize", finalize)
 
     graph.add_edge(START, "input_guard")
     graph.add_conditional_edges("input_guard", lambda s: END if s["blocked"] else "prepare_context")
     graph.add_edge("prepare_context", "agent")
-    graph.add_conditional_edges("agent", lambda s: "tools" if _tool_calls(s["messages"][-1]) else "finalize")
+    graph.add_conditional_edges("agent", lambda s: "tools" if _tool_calls(s["messages"][-1]) else "verify")
     graph.add_edge("tools", "agent")
+    graph.add_conditional_edges("verify", lambda s: "agent" if s.get("revision_note") else "finalize")
     graph.add_edge("finalize", END)
     return graph.compile(checkpointer=checkpointer if checkpointer is not None else InMemorySaver())
 

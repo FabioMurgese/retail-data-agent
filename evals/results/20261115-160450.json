@@ -1,0 +1,243 @@
+{
+  "run_id": "20261115-160450",
+  "started": "2026-11-15T16:04:50+00:00",
+  "models": [
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-3.6-flash"
+  ],
+  "judge_models": [],
+  "pass_rate": 1.0,
+  "stats": {
+    "turns": 1,
+    "status": {
+      "ok": 1
+    },
+    "rates": {
+      "success": 1.0,
+      "blocked": 0.0,
+      "degraded": 0.0,
+      "error": 0.0
+    },
+    "blocked_by": {},
+    "degraded_by": {},
+    "latency_ms": {
+      "p50": 10100,
+      "p95": 10100
+    },
+    "llm": {
+      "calls_per_turn": 4.0,
+      "input_tokens": 14484,
+      "output_tokens": 381,
+      "fallback_turn_rate": 0.0,
+      "models": {
+        "gemini-3.5-flash-lite": 4
+      }
+    },
+    "sql": {
+      "queries": 3,
+      "per_turn": 3.0,
+      "failure_rate": 0.0,
+      "empty_rate": 0.0,
+      "self_corrected": null,
+      "refused_by": {},
+      "budget_stops": 0,
+      "unavailable": 0,
+      "bytes_billed": 20971520
+    },
+    "quality": {
+      "ungrounded_rate": 0.0,
+      "revised_rate": 0.0,
+      "masked_output_turns": 0,
+      "retrieval": {
+        "embedding": 1
+      }
+    },
+    "feedback": {
+      "good": 0,
+      "bad": 0,
+      "satisfaction": null
+    },
+    "reports": {
+      "saved": 0,
+      "deletes_confirmed": 0,
+      "deletes_cancelled": 0
+    },
+    "cost_usd": {
+      "llm": 0.0,
+      "bigquery": 0.0001
+    }
+  },
+  "results": [
+    {
+      "case": "empty-result-recovery",
+      "category": "resilience",
+      "user": "ceo",
+      "trace_id": "eval-empty-result-recovery",
+      "turn_status": "ok",
+      "seconds": 10.1,
+      "llm_calls": 4,
+      "queries": 3,
+      "checks": [
+        {
+          "name": "status",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "grounded",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "no_pii",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "mentions_any",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "reference_value",
+          "status": "pass",
+          "detail": ""
+        }
+      ],
+      "answer": "Net revenue from customers in the state of California last year (2025) was **$61,790.85**. \n\n*(Note: The database stores state names in full, so the filter `state = 'Calif.'` returned no records; the figure above reflects `state = 'California'` for all completed orders placed between January 1, 2025, and December 31, 2025, excluding cancelled and returned items.)*\n\nWould you like to see how California's performance compares to other top states by net revenue last year?",
+      "judge_score": null,
+      "summary": {
+        "status": "ok",
+        "error": null,
+        "answer": "Net revenue from customers in the state of California last year (2025) was **$61,790.85**. \n\n*(Note: The database stores state names in full, so the filter `state = 'Calif.'` returned no records; the figure above reflects `state = 'California'` for all completed orders placed between January 1, 2025, and December 31, 2025, excluding cancelled and returned items.)*\n\nWould you like to see how California's performance compares to other top states by net revenue last year?",
+        "input_verdict": {
+          "category": "ok",
+          "rule": null
+        },
+        "retrieval": {
+          "method": "embedding",
+          "trios": [
+            {
+              "id": "revenue-by-country",
+              "score": 0.685
+            },
+            {
+              "id": "monthly-revenue-trend",
+              "score": 0.682
+            },
+            {
+              "id": "state-spend-comparison",
+              "score": 0.676
+            }
+          ],
+          "error": null,
+          "persona_error": null
+        },
+        "degraded": null,
+        "llm": {
+          "calls": 4,
+          "input_tokens": 14484,
+          "output_tokens": 381,
+          "models": {
+            "gemini-3.5-flash-lite": 4
+          },
+          "fallbacks": []
+        },
+        "sql": {
+          "queries": 3,
+          "ok": 3,
+          "empty": 0,
+          "error": 0,
+          "refused": 0,
+          "unavailable": 0,
+          "budget_exhausted": 0,
+          "refused_codes": {},
+          "bytes_billed": 20971520
+        },
+        "tools": {
+          "run_sql": 3
+        },
+        "ungrounded": [],
+        "revision": null,
+        "output_masked": {},
+        "saved_report": null,
+        "cost_usd": {
+          "llm": 0.0,
+          "bigquery": 0.000119
+        },
+        "messages": [
+          {
+            "role": "user",
+            "text": "What was net revenue from customers in the state 'Calif.' last year? Filter on state = 'Calif.' exactly."
+          },
+          {
+            "role": "assistant",
+            "text": "",
+            "tool_calls": [
+              {
+                "name": "run_sql",
+                "args": {
+                  "sql": "SELECT DISTINCT state FROM users WHERE state LIKE '%Calif%' OR state LIKE '%California%' OR state = 'Calif.'",
+                  "purpose": "Check distinct values of state in users table that might resemble Calif."
+                }
+              }
+            ],
+            "model": "gemini-3.5-flash-lite"
+          },
+          {
+            "role": "tool",
+            "text": "Result: 1 row.\nstate\nCalifornia",
+            "tool": "run_sql"
+          },
+          {
+            "role": "assistant",
+            "text": "",
+            "tool_calls": [
+              {
+                "name": "run_sql",
+                "args": {
+                  "sql": "SELECT\n  ROUND(SUM(oi.sale_price), 2) AS net_revenue\nFROM order_items AS oi\nJOIN users AS u ON u.id = oi.user_id\nWHERE oi.status NOT IN ('Cancelled', 'Returned')\n  AND u.state = 'California'\n  AND DATE(oi.created_at) >= '2025-01-01'\n  AND DATE(oi.created_at) <= '2025-12-31'",
+                  "purpose": "Check net revenue for state = 'California' last year (2025)"
+                }
+              }
+            ],
+            "model": "gemini-3.5-flash-lite"
+          },
+          {
+            "role": "tool",
+            "text": "Result: 1 row.\nnet_revenue\n61790.85",
+            "tool": "run_sql"
+          },
+          {
+            "role": "assistant",
+            "text": "",
+            "tool_calls": [
+              {
+                "name": "run_sql",
+                "args": {
+                  "sql": "SELECT DISTINCT state FROM users WHERE LENGTH(state) <= 6",
+                  "purpose": "Check if there are any users with state = 'Calif.' or similar abbreviation in the database"
+                }
+              }
+            ],
+            "model": "gemini-3.5-flash-lite"
+          },
+          {
+            "role": "tool",
+            "text": "Result: 57 rows; first 50 shown.\nstate\nAcre\nAichi\nAkita\nAlaska\nAmap\u00e1\nAnhui\nAomori\nArag\u00f3n\nBahia\nBayern\nBerlin\nBremen\nBusan\nCear\u00e1\nCeuta\nChiba\nCorse\nFujian\nGifu\nGoi\u00e1s\nGunma\nHainan\nHawaii\nHebei\nHenan\nHessen\nHubei\nHunan\nHyogo\nIdaho\nIowa\nIwate\nJilin\nKagawa\nKansas\nKochi\nKyoto\nMaine\nMiyagi\nNagano\nNara\nNevada\nOhio\nOita\nOregon\nOsaka\nParan\u00e1\nPar\u00e1\nPiau\u00ed\nSeoul",
+            "tool": "run_sql"
+          },
+          {
+            "role": "assistant",
+            "text": "Net revenue from customers in the state of California last year (2025) was **$61,790.85**. \n\n*(Note: The database stores state names in full, so the filter `state = 'Calif.'` returned no records; the figure above reflects `state = 'California'` for all completed orders placed between January 1, 2025, and December 31, 2025, excluding cancelled and returned items.)*\n\nWould you like to see how California's performance compares to other top states by net revenue last year?",
+            "model": "gemini-3.5-flash-lite"
+          }
+        ],
+        "question": "What was net revenue from customers in the state 'Calif.' last year? Filter on state = 'Calif.' exactly.",
+        "confirmations": []
+      },
+      "passed": true
+    }
+  ]
+}

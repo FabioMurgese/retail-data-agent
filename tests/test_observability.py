@@ -219,7 +219,8 @@ def test_percentile_and_time_windows():
 def test_candidate_trio_keeps_system_notes_out_of_the_report_and_warns_the_reviewer(settings):
     model = ScriptedModel(
         sql("SELECT COUNT(*) AS n FROM orders"),
-        ai("You have 3 orders worth $4,068,574.68."),  # an unbacked figure: finalize appends a caveat
+        ai("You have 3 orders worth $4,068,574.68."),  # an unbacked figure: one revision is asked
+        ai("You have 3 orders worth $4,068,574.68."),  # still unbacked: finalize appends a caveat
     )
     app, _ = chat(settings, model, FakeRunner(df=pd.DataFrame({"n": [3]})))
     app.turn("How many orders do we have?")

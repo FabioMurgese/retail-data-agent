@@ -185,6 +185,8 @@ class TurnObserver:
                             "result": self._mask(_text(message))[:_TEXT_LIMIT],
                         },
                     )
+        elif node == "verify" and (revision := values.get("revision")):
+            self._write("grounding_check", status="revise", ms=step_ms, data=revision)
         elif node == "finalize":
             self._write(
                 "output",
@@ -279,6 +281,7 @@ def summarize_turn(
         },
         "tools": dict(Counter(m.name for m in turn if isinstance(m, ToolMessage))),
         "ungrounded": state.get("ungrounded") or [],
+        "revision": state.get("revision"),
         "output_masked": state.get("output_masked") or {},
         "saved_report": state.get("saved_report"),
         "cost_usd": {
@@ -389,6 +392,7 @@ def compute_stats(turns: Sequence[dict[str, Any]], feedback: Sequence[dict[str, 
         },
         "quality": {
             "ungrounded_rate": share(sum(1 for d in replies if d["ungrounded"]), len(replies)),
+            "revised_rate": share(sum(1 for d in replies if d.get("revision")), len(replies)),
             "masked_output_turns": sum(1 for d in data if d["output_masked"]),
             "retrieval": dict(
                 Counter((d["retrieval"] or {}).get("method") for d in replies if d["retrieval"])

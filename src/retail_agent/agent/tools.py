@@ -168,4 +168,6 @@ def render_result(df: pd.DataFrame, *, total_rows: int, truncated: bool, limit: 
         header = f"Result: {total_rows} rows; first {len(shown)} shown."
     else:
         header = f"Result: {total_rows} row{'s' if total_rows != 1 else ''}."
-    return f"{header}\n{shown.round(4).to_csv(index=False).strip()}"
+    numeric = shown.select_dtypes("number").columns
+    rounded = shown.round(dict.fromkeys(numeric, 4))  # dates and text are left as they are
+    return f"{header}\n{rounded.to_csv(index=False).strip()}"

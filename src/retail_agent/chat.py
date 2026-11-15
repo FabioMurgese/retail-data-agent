@@ -6,15 +6,12 @@ from __future__ import annotations
 
 import contextlib
 import logging
-import uuid
 from datetime import date
 from pathlib import Path
 from typing import Any, Literal
 
-from langchain_core.messages import HumanMessage, ToolMessage
-from langgraph.errors import GraphRecursionError
+from langchain_core.messages import ToolMessage
 from langgraph.graph.state import CompiledStateGraph
-from langgraph.types import Command
 from rich.console import Console, Group
 from rich.markdown import Markdown
 from rich.markup import escape
@@ -26,8 +23,9 @@ from rich.text import Text
 from retail_agent.agent.graph import strip_system_notes
 from retail_agent.agent.prompts import describe_scope
 from retail_agent.agent.session import AgentSession
+from retail_agent.agent.turns import run_turn
 from retail_agent.golden import write_candidate
-from retail_agent.observability import TurnObserver, TurnStatus, compute_stats
+from retail_agent.observability import compute_stats
 from retail_agent.views import render_stats, render_trace, render_turn_list
 
 with contextlib.suppress(ImportError):
@@ -90,82 +88,43 @@ class ChatApp:
             self.turn(text)
 
     def turn(self, text: str) -> None:
-        trace_id = uuid.uuid4().hex[:12]
-        config: dict[str, Any] = {
-            "configurable": {"thread_id": self.session.thread_id},
-            "recursion_limit": self.session.settings.recursion_limit,
-        }
-        observer = TurnObserver(
-            self.session.events,
-            self.session.settings,
-            self.session.masker,
-            trace_id=trace_id,
-            user_id=self.session.user_id,
-            thread_id=self.session.thread_id,
-            question=text,
-        )
-        graph_input: Any = {"messages": [HumanMessage(text)], "trace_id": trace_id}
-        follow_up, failure, error = None, None, None
-        while True:
-            failure, error = self._stream(graph_input, config, trace_id, observer)
-            if failure:
-                break
-            interrupts = self.graph.get_state(config).interrupts
-            if not interrupts:
-                break
-            decisions = {}
-            for pending in interrupts:  # normally one: the prompt asks for one delete call per request
-                decision, typed = self._confirm_delete(pending.value)
-                observer.on_confirmation(pending.value, decision["confirmed"])
-                decisions[pending.id] = decision
-                follow_up = follow_up or typed
-            graph_input = Command(resume=decisions)
+        with self.console.status("Thinking…", spinner="dots") as status:
 
-        observer.finish(self._state(config), failure=failure, error=error)
-        self.last_trace_id = trace_id
-        if failure:
-            return
-        answer = self.graph.get_state(config).values["messages"][-1]
-        self.console.print()
-        self.console.print(Markdown(answer.text or "(no answer)"))
-        self.console.print(f"[dim]trace {trace_id}[/]\n")
-        if follow_up:  # the user answered the confirmation with a new request: handle it now
-            self.turn(follow_up)
+            def confirm(request: dict[str, Any]) -> tuple[bool, str | None]:
+                status.stop()  # the spinner would overwrite the confirmation prompt
+                try:
+                    decision, typed = self._confirm_delete(request)
+                finally:
+                    status.start()
+                return decision["confirmed"], typed
 
-    def _stream(
-        self, graph_input: Any, config: dict[str, Any], trace_id: str, observer: TurnObserver
-    ) -> tuple[TurnStatus | None, str | None]:
-        """Run the graph until it ends or pauses; (failure status, error) if the turn could not finish."""
-        try:
-            with self.console.status("Thinking…", spinner="dots") as status:
-                for update in self.graph.stream(graph_input, config, stream_mode="updates"):
-                    for node, values in update.items():
-                        observer.on_update(node, values)
-                    self._progress(update, status)
-            return None, None
-        except KeyboardInterrupt:
+            outcome = run_turn(
+                self.session,
+                self.graph,
+                text,
+                confirm=confirm,
+                on_update=lambda node, values: self._progress({node: values}, status),
+            )
+        self.last_trace_id = outcome.trace_id
+        trace = f"[dim](trace {outcome.trace_id})[/]"
+        if outcome.failure == "interrupted":
             self.console.print("[yellow]Interrupted.[/] The conversation is still open.")
-            return "interrupted", "interrupted by the user"
-        except GraphRecursionError as exc:
+            return
+        if outcome.failure == "stopped":
             self.console.print(
-                "[yellow]That question needed too many steps, so I stopped.[/] "
-                f"Try splitting it into smaller questions. [dim](trace {trace_id})[/]"
+                f"[yellow]That question needed too many steps, so I stopped.[/] Try a narrower one. {trace}"
             )
-            return "stopped", f"recursion limit: {exc}"[:300]
-        except Exception as exc:  # the chat must survive any failure in a turn
-            log.exception("turn failed (trace %s)", trace_id)
+            return
+        if outcome.failure == "error":
             self.console.print(
-                "[red]Something went wrong while answering.[/] The conversation is still open. "
-                f"[dim](trace {trace_id})[/]"
+                f"[red]Something went wrong while answering.[/] The conversation is still open. {trace}"
             )
-            return "error", f"{type(exc).__name__}: {exc}"[:300]
-
-    def _state(self, config: dict[str, Any]) -> dict[str, Any] | None:
-        try:
-            return dict(self.graph.get_state(config).values)
-        except Exception:  # recording must not fail because the state cannot be read
-            log.exception("could not read the graph state")
-            return None
+            return
+        self.console.print()
+        self.console.print(Markdown(outcome.answer or "(no answer)"))
+        self.console.print(f"[dim]trace {outcome.trace_id}[/]\n")
+        if outcome.follow_up:  # the user answered the confirmation with a new request: handle it now
+            self.turn(outcome.follow_up)
 
     # --- destructive-action confirmation -----------------------------------------------------------
 

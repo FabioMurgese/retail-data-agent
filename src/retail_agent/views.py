@@ -121,7 +121,12 @@ def render_stats(console: Console, stats: dict[str, Any], *, title: str) -> None
         ("Self-corrected after a failure", _pct(sql["self_corrected"]), ""),
         ("Query-limit stops / BigQuery down", f"{sql['budget_stops']} / {sql['unavailable']}", ""),
         ("BigQuery billed", f"{sql['bytes_billed'] / 1e6:,.0f} MB", ""),
-        ("Answers with unbacked figures", _pct(quality["ungrounded_rate"]), ""),
+        (
+            "Answers revised for unbacked figures",
+            _pct(quality.get("revised_rate")),
+            "self-corrected before sending",
+        ),
+        ("Answers with unbacked figures", _pct(quality["ungrounded_rate"]), "after the revision"),
         ("Answers where PII was masked", str(quality["masked_output_turns"]), "should stay 0"),
         ("Example retrieval", "", _counts(quality["retrieval"])),
         ("Feedback", f"{feedback['good']} good · {feedback['bad']} bad", satisfaction),
@@ -175,6 +180,9 @@ def _describe(event: dict[str, Any]) -> str:
             f"[bold]output[/]       unbacked figures: {escape(ungrounded)} · PII masked: {masked} · "
             f"report saved: {saved}"
         )
+    if kind == "grounding_check":
+        unbacked = escape(", ".join(data.get("unbacked", [])))
+        return f"[bold]verify[/]       [yellow]revision asked[/]: unbacked {unbacked}"
     if kind == "feedback":
         return f"[bold]feedback[/]     {status} {escape(data.get('comment') or '')}"
     return f"{kind} {name or ''} {status or ''}"

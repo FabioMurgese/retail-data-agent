@@ -1,0 +1,297 @@
+{
+  "run_id": "20261115-155422",
+  "started": "2026-11-15T15:54:22+00:00",
+  "models": [
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-3.6-flash"
+  ],
+  "judge_models": [
+    "gemini-3.8-flash",
+    "gemini-3.6-flash",
+    "gemini-3-flash"
+  ],
+  "pass_rate": 0.0,
+  "stats": {
+    "turns": 1,
+    "status": {
+      "ok": 1
+    },
+    "rates": {
+      "success": 1.0,
+      "blocked": 0.0,
+      "degraded": 0.0,
+      "error": 0.0
+    },
+    "blocked_by": {},
+    "degraded_by": {},
+    "latency_ms": {
+      "p50": 21100,
+      "p95": 21100
+    },
+    "llm": {
+      "calls_per_turn": 6.0,
+      "input_tokens": 28322,
+      "output_tokens": 1740,
+      "fallback_turn_rate": 0.0,
+      "models": {
+        "gemini-3.5-flash-lite": 6
+      }
+    },
+    "sql": {
+      "queries": 5,
+      "per_turn": 5.0,
+      "failure_rate": 0.0,
+      "empty_rate": 0.0,
+      "self_corrected": null,
+      "refused_by": {},
+      "budget_stops": 0,
+      "unavailable": 0,
+      "bytes_billed": 83886080
+    },
+    "quality": {
+      "ungrounded_rate": 0.0,
+      "revised_rate": 1.0,
+      "masked_output_turns": 0,
+      "retrieval": {
+        "embedding": 1
+      }
+    },
+    "feedback": {
+      "good": 0,
+      "bad": 0,
+      "satisfaction": null
+    },
+    "reports": {
+      "saved": 0,
+      "deletes_confirmed": 0,
+      "deletes_cancelled": 0
+    },
+    "cost_usd": {
+      "llm": 0.0,
+      "bigquery": 0.0005
+    }
+  },
+  "results": [
+    {
+      "case": "churn-spike",
+      "category": "multi_step",
+      "user": "ceo",
+      "trace_id": "eval-churn-spike",
+      "turn_status": "ok",
+      "seconds": 21.1,
+      "llm_calls": 6,
+      "queries": 5,
+      "checks": [
+        {
+          "name": "status",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "min_queries",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "grounded",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "no_pii",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "mentions_any",
+          "status": "pass",
+          "detail": ""
+        },
+        {
+          "name": "judge",
+          "status": "fail",
+          "detail": "score 3/5; issues: Failed to examine at least one driver (such as traffic source, country, or new-customer volume) with numbers, despite query results being provided for acquisition channels, countries, and new customer counts."
+        }
+      ],
+      "answer": "Our customer churn rate actually **improved** (decreased) last month rather than spiked: the churn rate for October 2026 dropped to **90.5%** from **93.2%** in September 2026. \n\n*(Note: Churn rate is defined here as the share of active customers from month M-1 who did not place an order in month M. Because most of our customers buy infrequently, the baseline level is structurally high around 90%\u201396%).*\n\nHere are the key details from the data over the last 6 complete months:\n- **October 2026 (last month):** 4,008 active customers in September; **90.5%** churn rate.\n- **September 2026:** 3,849 active customers in August; **93.2%** churn rate.\n- **August 2026:** 3,282 active customers in July; **93.0%** churn rate.\n- **July 2026:** 3,121 active customers in June; **94.7%** churn rate.\n- **June 2026:** 3,039 active customers in May; **95.4%** churn rate.\n- **May 2026:** 2,679 active customers in April; **96.0%** churn rate.\n\nWould you like to analyze which acquisition channels delivered the customers with the highest retention rates over the past year?",
+      "judge_score": 3,
+      "summary": {
+        "status": "ok",
+        "error": null,
+        "answer": "Our customer churn rate actually **improved** (decreased) last month rather than spiked: the churn rate for October 2026 dropped to **90.5%** from **93.2%** in September 2026. \n\n*(Note: Churn rate is defined here as the share of active customers from month M-1 who did not place an order in month M. Because most of our customers buy infrequently, the baseline level is structurally high around 90%\u201396%).*\n\nHere are the key details from the data over the last 6 complete months:\n- **October 2026 (last month):** 4,008 active customers in September; **90.5%** churn rate.\n- **September 2026:** 3,849 active customers in August; **93.2%** churn rate.\n- **August 2026:** 3,282 active customers in July; **93.0%** churn rate.\n- **July 2026:** 3,121 active customers in June; **94.7%** churn rate.\n- **June 2026:** 3,039 active customers in May; **95.4%** churn rate.\n- **May 2026:** 2,679 active customers in April; **96.0%** churn rate.\n\nWould you like to analyze which acquisition channels delivered the customers with the highest retention rates over the past year?",
+        "input_verdict": {
+          "category": "ok",
+          "rule": null
+        },
+        "retrieval": {
+          "method": "embedding",
+          "trios": [
+            {
+              "id": "churn-rate-spike",
+              "score": 0.843
+            },
+            {
+              "id": "state-spend-comparison",
+              "score": 0.67
+            },
+            {
+              "id": "monthly-revenue-trend",
+              "score": 0.661
+            }
+          ],
+          "error": null,
+          "persona_error": null
+        },
+        "degraded": null,
+        "llm": {
+          "calls": 6,
+          "input_tokens": 28322,
+          "output_tokens": 1740,
+          "models": {
+            "gemini-3.5-flash-lite": 6
+          },
+          "fallbacks": []
+        },
+        "sql": {
+          "queries": 5,
+          "ok": 5,
+          "empty": 0,
+          "error": 0,
+          "refused": 0,
+          "unavailable": 0,
+          "budget_exhausted": 0,
+          "refused_codes": {},
+          "bytes_billed": 83886080
+        },
+        "tools": {
+          "run_sql": 5
+        },
+        "ungrounded": [],
+        "revision": {
+          "unbacked": [
+            "382",
+            "262",
+            "231"
+          ],
+          "draft": "Our customer churn rate actually **improved** (decreased) last month rather than spiked: the churn rate for October 2026 dropped to **90.5%** from **93.2%** in September 2026. \n\n*(Note: Churn rate is defined here as the share of active customers from month M-1 who did not place an order in month M. Because most of our customers buy infrequently, the baseline level is structurally high around 90%\u201396%).*\n\nHere are the key details from the data over the last 6 complete months:\n- **October 2026 (last month):** 4,008 active customers in September; 90.5% churned (382 retained).\n- **September 2026:** 3,849 active customers in August; 93.2% churned (262 retained).\n- **August 2026:** 3,282 active customers in July; 93.0% churned (231 retained).\n- **July 2026:** 3,121 active customers in June; 94.7% churned (167 retained).\n\nWould you like to analyze which acquisition channels delivered the customers with the highest retention rates over the past year?"
+        },
+        "output_masked": {},
+        "saved_report": null,
+        "cost_usd": {
+          "llm": 0.0,
+          "bigquery": 0.000477
+        },
+        "messages": [
+          {
+            "role": "user",
+            "text": "Why did our churn rate spike last month?"
+          },
+          {
+            "role": "assistant",
+            "text": "",
+            "tool_calls": [
+              {
+                "name": "run_sql",
+                "args": {
+                  "purpose": "Monthly customer churn rate over the last 12 months",
+                  "sql": "WITH monthly AS (\n  SELECT DISTINCT user_id, DATE_TRUNC(DATE(created_at), MONTH) AS month\n  FROM orders\n  WHERE status != 'Cancelled'\n),\ncohort AS (\n  SELECT a.month, a.user_id, b.user_id IS NOT NULL AS retained\n  FROM monthly AS a\n  LEFT JOIN monthly AS b\n    ON b.user_id = a.user_id AND b.month = DATE_ADD(a.month, INTERVAL 1 MONTH)\n  WHERE a.month BETWEEN DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 12 MONTH), MONTH)\n                    AND DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH), MONTH)\n)\nSELECT\n  DATE_ADD(month, INTERVAL 1 MONTH) AS churn_month,\n  COUNT(*) AS customers_previous_month,\n  ROUND(SUM(IF(retained, 0, 1)) / COUNT(*), 4) AS churn_rate\nFROM cohort\nGROUP BY month\nORDER BY month DESC\nLIMIT 8"
+                }
+              }
+            ],
+            "model": "gemini-3.5-flash-lite"
+          },
+          {
+            "role": "tool",
+            "text": "Result: 8 rows.\nchurn_month,customers_previous_month,churn_rate\n2026-11-01,4743,0.9192\n2026-10-01,4008,0.9052\n2026-09-01,3849,0.9319\n2026-08-01,3282,0.9296\n2026-07-01,3121,0.9465\n2026-06-01,3039,0.9539\n2026-05-01,2679,0.9604\n2026-04-01,2661,0.9632",
+            "tool": "run_sql"
+          },
+          {
+            "role": "assistant",
+            "text": "",
+            "tool_calls": [
+              {
+                "name": "run_sql",
+                "args": {
+                  "sql": "SELECT\n  DATE_TRUNC(DATE(created_at), MONTH) AS month,\n  COUNT(DISTINCT user_id) AS active_customers,\n  COUNT(DISTINCT CASE WHEN is_new THEN user_id END) AS new_customers\nFROM (\n  SELECT user_id, created_at,\n         ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY created_at) = 1 AS is_new\n  FROM orders\n  WHERE status != 'Cancelled'\n)\nWHERE DATE(created_at) >= DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 8 MONTH), MONTH)\nGROUP BY month\nORDER BY month DESC",
+                  "purpose": "Check customer acquisition volume in preceding months"
+                }
+              }
+            ],
+            "model": "gemini-3.5-flash-lite"
+          },
+          {
+            "role": "tool",
+            "text": "Result: 9 rows.\nmonth,active_customers,new_customers\n2026-11-01,4688,3432\n2026-10-01,4743,2803\n2026-09-01,4008,2372\n2026-08-01,3849,2239\n2026-07-01,3282,1874\n2026-06-01,3121,1920\n2026-05-01,3039,1914\n2026-04-01,2679,1628\n2026-03-01,2661,1626",
+            "tool": "run_sql"
+          },
+          {
+            "role": "assistant",
+            "text": "",
+            "tool_calls": [
+              {
+                "name": "run_sql",
+                "args": {
+                  "purpose": "Churn rate in October 2026 by traffic source",
+                  "sql": "WITH monthly AS (\n  SELECT DISTINCT oi.user_id, DATE_TRUNC(DATE(oi.created_at), MONTH) AS month\n  FROM order_items AS oi\n  WHERE oi.status NOT IN ('Cancelled', 'Returned')\n),\ncohort_base AS (\n  SELECT DISTINCT u.id AS user_id, u.traffic_source, DATE_TRUNC(DATE(o.created_at), MONTH) AS month\n  FROM users AS u\n  JOIN orders AS o ON o.user_id = u.id\n  WHERE o.status != 'Cancelled'\n    AND DATE_TRUNC(DATE(o.created_at), MONTH) = DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 2 MONTH), MONTH)\n),\ncohort AS (\n  SELECT \n    cb.traffic_source,\n    cb.user_id,\n    m.user_id IS NOT NULL AS retained\n  FROM cohort_base AS cb\n  LEFT JOIN monthly AS m\n    ON m.user_id = cb.user_id AND m.month = DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH), MONTH)\n)\nSELECT\n  traffic_source,\n  COUNT(*) AS customers_sep,\n  ROUND(1 - AVG(IF(retained, 1, 0)), 4) AS churn_rate_in_oct\nFROM cohort\nGROUP BY traffic_source\nORDER BY customers_sep DESC"
+                }
+              }
+            ],
+            "model": "gemini-3.5-flash-lite"
+          },
+          {
+            "role": "tool",
+            "text": "Result: 5 rows.\ntraffic_source,customers_sep,churn_rate_in_oct\nSearch,2824,0.881\nOrganic,604,0.8974\nFacebook,229,0.8734\nEmail,189,0.873\nDisplay,162,0.9136",
+            "tool": "run_sql"
+          },
+          {
+            "role": "assistant",
+            "text": "",
+            "tool_calls": [
+              {
+                "name": "run_sql",
+                "args": {
+                  "purpose": "Churn rate in October 2026 by country",
+                  "sql": "WITH cohort_base AS (\n  SELECT DISTINCT u.id AS user_id, u.country, DATE_TRUNC(DATE(o.created_at), MONTH) AS month\n  FROM users AS u\n  JOIN orders AS o ON o.user_id = u.id\n  WHERE o.status != 'Cancelled'\n    AND DATE_TRUNC(DATE(o.created_at), MONTH) = DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 2 MONTH), MONTH)\n),\nmonthly AS (\n  SELECT DISTINCT user_id, DATE_TRUNC(DATE(created_at), MONTH) AS month\n  FROM orders\n  WHERE status != 'Cancelled'\n),\ncohort AS (\n  SELECT \n    cb.country,\n    cb.user_id,\n    m.user_id IS NOT NULL AS retained\n  FROM cohort_base AS cb\n  LEFT JOIN monthly AS m\n    ON m.user_id = cb.user_id AND m.month = DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 1 MONTH), MONTH)\n)\nSELECT\n  country,\n  COUNT(*) AS customers_sep,\n  ROUND(1 - AVG(IF(retained, 1, 0)), 4) AS churn_rate_in_oct\nFROM cohort\nGROUP BY country\nORDER BY customers_sep DESC"
+                }
+              }
+            ],
+            "model": "gemini-3.5-flash-lite"
+          },
+          {
+            "role": "tool",
+            "text": "Result: 12 rows.\ncountry,customers_sep,churn_rate_in_oct\nChina,1352,0.9231\nUnited States,856,0.8995\nBrasil,602,0.8904\nSouth Korea,218,0.8761\nUnited Kingdom,187,0.8556\nFrance,184,0.9239\nGermany,183,0.9126\nSpain,159,0.8994\nAustralia,105,0.9048\nJapan,91,0.9121\nBelgium,55,0.9636\nPoland,16,0.75",
+            "tool": "run_sql"
+          },
+          {
+            "role": "assistant",
+            "text": "",
+            "tool_calls": [
+              {
+                "name": "run_sql",
+                "args": {
+                  "sql": "WITH monthly AS (\n  SELECT DISTINCT user_id, DATE_TRUNC(DATE(created_at), MONTH) AS month\n  FROM orders\n  WHERE status != 'Cancelled'\n),\ncohort AS (\n  SELECT a.month, a.user_id, b.user_id IS NOT NULL AS retained\n  FROM monthly AS a\n  LEFT JOIN monthly AS b\n    ON b.user_id = a.user_id AND b.month = DATE_ADD(a.month, INTERVAL 1 MONTH)\n  WHERE a.month BETWEEN DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 7 MONTH), MONTH)\n                    AND DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 2 MONTH), MONTH)\n)\nSELECT\n  DATE_ADD(month, INTERVAL 1 MONTH) AS churn_month,\n  COUNT(*) AS customers_previous_month,\n  ROUND(1 - AVG(IF(retained, 1, 0)), 4) AS churn_rate\nFROM cohort\nGROUP BY month\nORDER BY month DESC",
+                  "purpose": "Check September to October churn rate comparison against prior months by segment"
+                }
+              }
+            ],
+            "model": "gemini-3.5-flash-lite"
+          },
+          {
+            "role": "tool",
+            "text": "Result: 6 rows.\nchurn_month,customers_previous_month,churn_rate\n2026-10-01,4008,0.9052\n2026-09-01,3849,0.9319\n2026-08-01,3282,0.9296\n2026-07-01,3121,0.9465\n2026-06-01,3039,0.9539\n2026-05-01,2679,0.9604",
+            "tool": "run_sql"
+          },
+          {
+            "role": "assistant",
+            "text": "Our customer churn rate actually **improved** (decreased) last month rather than spiked: the churn rate for October 2026 dropped to **90.5%** from **93.2%** in September 2026. \n\n*(Note: Churn rate is defined here as the share of active customers from month M-1 who did not place an order in month M. Because most of our customers buy infrequently, the baseline level is structurally high around 90%\u201396%).*\n\nHere are the key details from the data over the last 6 complete months:\n- **October 2026 (last month):** 4,008 active customers in September; **90.5%** churn rate.\n- **September 2026:** 3,849 active customers in August; **93.2%** churn rate.\n- **August 2026:** 3,282 active customers in July; **93.0%** churn rate.\n- **July 2026:** 3,121 active customers in June; **94.7%** churn rate.\n- **June 2026:** 3,039 active customers in May; **95.4%** churn rate.\n- **May 2026:** 2,679 active customers in April; **96.0%** churn rate.\n\nWould you like to analyze which acquisition channels delivered the customers with the highest retention rates over the past year?",
+            "model": "gemini-3.5-flash-lite"
+          }
+        ],
+        "question": "Why did our churn rate spike last month?",
+        "confirmations": []
+      },
+      "passed": false
+    }
+  ]
+}

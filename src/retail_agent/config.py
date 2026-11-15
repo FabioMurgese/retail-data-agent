@@ -53,6 +53,11 @@ class Settings(BaseSettings):
     bq_max_rows: int = Field(1_000, gt=0)
     bq_retry_deadline_s: float = Field(30.0, gt=0)  # total time spent retrying transient errors
 
+    # --- Evals: different (stronger) models grade answers, to limit self-preference; tried in order ---
+    eval_judge_models: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3-flash"]
+    )
+
     # --- Cost estimates in /stats (USD). The free tier costs nothing: set list prices to estimate. ---
     llm_price_input_per_mtok: float = Field(0.0, ge=0)
     llm_price_output_per_mtok: float = Field(0.0, ge=0)
@@ -67,7 +72,7 @@ class Settings(BaseSettings):
     logs_dir: Path = Path("logs")
     golden_candidates_dir: Path = Path("golden/candidates")  # trios proposed via /good, for analyst review
 
-    @field_validator("fallback_models", mode="before")
+    @field_validator("fallback_models", "eval_judge_models", mode="before")
     @classmethod
     def _split_csv(cls, value: object) -> object:
         if isinstance(value, str):

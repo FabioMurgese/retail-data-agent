@@ -18,7 +18,7 @@ from langchain_core.tools import BaseTool
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from retail_agent.config import Settings
-from retail_agent.resilience import FallbackChatModel, ModelSlot
+from retail_agent.resilience import CircuitBreaker, FallbackChatModel, ModelSlot
 
 
 class SlidingWindowRateLimiter(BaseRateLimiter):
@@ -64,23 +64,41 @@ class SlidingWindowRateLimiter(BaseRateLimiter):
             await asyncio.sleep(wait)
 
 
-def build_chat_model(settings: Settings, tools: Sequence[BaseTool]) -> FallbackChatModel:
+# Quotas and outages are per model and per GCP project, not per chat session: share limiters and
+# breakers across every session (and eval case) in the process.
+_LIMITERS: dict[str, SlidingWindowRateLimiter] = {}
+_BREAKERS: dict[str, CircuitBreaker] = {}
+
+
+def limiter_for(model: str, rpm: int) -> SlidingWindowRateLimiter:
+    return _LIMITERS.setdefault(model, SlidingWindowRateLimiter(rpm))
+
+
+def breaker_for(model: str, cooldown_s: float) -> CircuitBreaker:
+    return _BREAKERS.setdefault(
+        model, CircuitBreaker(f"llm:{model}", failure_threshold=2, cooldown_s=cooldown_s)
+    )
+
+
+def gemini(settings: Settings, model: str, **kwargs: object) -> ChatGoogleGenerativeAI:
     if settings.gemini_api_key is None:
         raise ValueError("GEMINI_API_KEY is not set (.env). Run `retail-agent doctor`.")
-    api_key = settings.gemini_api_key.get_secret_value()
+    return ChatGoogleGenerativeAI(
+        model=model,
+        google_api_key=settings.gemini_api_key.get_secret_value(),
+        max_retries=settings.llm_max_retries,
+        timeout=settings.llm_timeout_s,
+        **kwargs,
+    )
 
+
+def build_chat_model(settings: Settings, tools: Sequence[BaseTool]) -> FallbackChatModel:
     def slot(model: str) -> ModelSlot:
-        llm = ChatGoogleGenerativeAI(
-            model=model,
-            google_api_key=api_key,
-            max_retries=settings.llm_max_retries,
-            timeout=settings.llm_timeout_s,
-        )
         return ModelSlot(
             name=model,
-            model=llm.bind_tools(list(tools)),
-            limiter=SlidingWindowRateLimiter(settings.rpm_for(model)),
-            cooldown_s=settings.breaker_cooldown_s,
+            model=gemini(settings, model).bind_tools(list(tools)),
+            limiter=limiter_for(model, settings.rpm_for(model)),
+            breaker=breaker_for(model, settings.breaker_cooldown_s),
         )
 
     return FallbackChatModel([slot(model) for model in settings.model_chain])
