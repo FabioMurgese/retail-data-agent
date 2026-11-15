@@ -3,7 +3,7 @@ name = "retail-agent"
 version = "0.1.0"
 description = "Data analysis chat agent for retail executives over BigQuery thelook_ecommerce, powered by Gemini + LangGraph"
 readme = "README.md"
-requires-python = ">=3.11,<3.14"
+requires-python = ">=3.11,<3.15"
 dependencies = [
     "db-dtypes>=1.9.0",
     "google-cloud-bigquery>=3.47.0",

@@ -168,7 +168,8 @@ def _describe(event: dict[str, Any]) -> str:
         extra = f" · {artifact['rows']} rows" if "rows" in artifact else ""
         if artifact.get("code"):
             extra += f" · {artifact['code']}"
-        return f"[bold]{escape(name or 'tool'):<12}[/] {status}{extra} · {ms} · {escape(str(detail)[:90])}"
+        detail = f" · {escape(str(detail)[:90])}" if detail else ""
+        return f"[bold]{escape(name or 'tool'):<12}[/] {status}{extra} · {ms}{detail}"
     if kind == "confirmation":
         count = len(data.get("report_ids", []))
         return f"[bold]confirmation[/] {status}: {count} report(s) {escape(str(data.get('criteria')))}"
