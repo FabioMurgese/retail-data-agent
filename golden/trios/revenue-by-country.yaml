@@ -1,0 +1,24 @@
+id: revenue-by-country
+question: What is our revenue by country?
+tags: [country, geography, international, revenue, customers, markets]
+author: analytics-team
+created: 2026-10-19
+sql: |
+  SELECT
+    CASE u.country
+      WHEN 'Deutschland' THEN 'Germany'
+      WHEN 'España' THEN 'Spain'
+      ELSE u.country
+    END AS country,
+    COUNT(DISTINCT u.id) AS buying_customers,
+    ROUND(SUM(oi.sale_price), 2) AS net_revenue
+  FROM order_items AS oi
+  JOIN users AS u ON u.id = oi.user_id
+  WHERE oi.status NOT IN ('Cancelled', 'Returned')
+  GROUP BY country
+  ORDER BY net_revenue DESC
+report: |
+  Country values are not fully clean: 'Deutschland' and 'España' are the same markets as 'Germany'
+  and 'Spain', so merge them as in this query. Brazil is stored as 'Brasil'. Compare markets on
+  revenue per buying customer as well as totals: the largest markets by customers are not always
+  the most valuable.

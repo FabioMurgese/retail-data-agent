@@ -1,0 +1,22 @@
+id: return-rate-by-category
+question: Which product categories have the highest return rates?
+tags: [returns, return rate, category, quality, products]
+author: analytics-team
+created: 2026-10-05
+sql: |
+  SELECT
+    p.category,
+    COUNT(*) AS items_delivered,
+    COUNTIF(oi.status = 'Returned') AS items_returned,
+    ROUND(COUNTIF(oi.status = 'Returned') / COUNT(*), 4) AS return_rate
+  FROM order_items AS oi
+  JOIN products AS p ON p.id = oi.product_id
+  WHERE oi.status IN ('Complete', 'Returned')
+  GROUP BY p.category
+  HAVING items_delivered >= 100
+  ORDER BY return_rate DESC
+report: |
+  Return rate = returned items / items that reached the customer (status Complete or Returned).
+  Items still Processing or Shipped are excluded because they cannot have been returned yet.
+  Categories with fewer than 100 delivered items are left out: rates on small samples are noise.
+  The same category name exists in both departments: add department when comparing.

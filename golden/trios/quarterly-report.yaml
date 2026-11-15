@@ -1,0 +1,25 @@
+id: quarterly-report
+question: Create a report for Q1 including insights and action items for Q2.
+tags: [report, quarter, quarterly, Q1, insights, action items, summary, review]
+author: analytics-team
+created: 2026-10-12
+sql: |
+  SELECT
+    p.category,
+    ROUND(SUM(IF(DATE(oi.created_at) BETWEEN '2026-01-01' AND '2026-03-31', oi.sale_price, 0)), 2)
+      AS quarter_net_revenue,
+    ROUND(SUM(IF(DATE(oi.created_at) BETWEEN '2025-10-01' AND '2025-12-31', oi.sale_price, 0)), 2)
+      AS previous_quarter_net_revenue
+  FROM order_items AS oi
+  JOIN products AS p ON p.id = oi.product_id
+  WHERE oi.status NOT IN ('Cancelled', 'Returned')
+    AND DATE(oi.created_at) BETWEEN '2025-10-01' AND '2026-03-31'
+  GROUP BY p.category
+  ORDER BY quarter_net_revenue DESC
+report: |
+  A quarterly report needs 4-5 queries, not one: (1) net revenue, orders and average order value
+  for the quarter vs. the previous quarter and the same quarter last year; (2) revenue change by
+  category (this query); (3) new vs. returning customers; (4) return rate by category; (5) revenue
+  by traffic_source. "Q1" means the most recent completed Q1 unless the user names a year. Every
+  insight cites a number; every action item is tied to a finding and has an owner team, a priority
+  and an expected impact (e.g. a category with rising returns -> merchandising reviews size guides).

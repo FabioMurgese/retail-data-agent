@@ -1,0 +1,74 @@
+# Data-access policy for the agent (owned by data stewards; no code change or redeploy needed).
+#
+# `columns` is an ALLOWLIST: only these columns exist for the agent. Every table reference in
+# LLM-written SQL is rewritten into a subquery that selects just these columns.
+# `pii` lists the sensitive columns: never selectable, and used by the output masker.
+# A column in neither list (e.g. one added upstream) stays hidden; `retail-agent doctor` flags it.
+#
+# Customers are referred to by their pseudonymous `id` / `user_id`. `city`, `state`, `age` and
+# `gender` are quasi-identifiers kept for segment analysis (see docs/TECHNICAL.md, Safety section).
+
+dataset: bigquery-public-data.thelook_ecommerce
+
+tables:
+  orders:
+    description: One row per customer order.
+    columns:
+      order_id: Order identifier.
+      user_id: Customer who placed the order (joins users.id).
+      status: "Order status: Processing, Shipped, Complete, Cancelled, Returned."
+      gender: Customer gender recorded on the order (M or F).
+      created_at: When the order was placed (TIMESTAMP, UTC).
+      shipped_at: When the order shipped; NULL if not shipped.
+      delivered_at: When the order was delivered; NULL if not delivered.
+      returned_at: When the order was returned; NULL if not returned.
+      num_of_item: Number of items in the order.
+
+  order_items:
+    description: One row per unit sold; the source of revenue figures.
+    columns:
+      id: Order item identifier.
+      order_id: Parent order (joins orders.order_id).
+      user_id: Customer who bought the item (joins users.id).
+      product_id: Product sold (joins products.id).
+      inventory_item_id: Internal inventory unit identifier (no inventory table is available).
+      status: "Item status: Processing, Shipped, Complete, Cancelled, Returned."
+      created_at: When the item was ordered (TIMESTAMP, UTC).
+      shipped_at: When the item shipped; NULL if not shipped.
+      delivered_at: When the item was delivered; NULL if not delivered.
+      returned_at: When the item was returned; NULL if not returned.
+      sale_price: Price paid for this unit.
+
+  products:
+    description: Product catalogue.
+    columns:
+      id: Product identifier.
+      name: Product name.
+      brand: Brand name (NULL for a few products).
+      category: Product category, e.g. Jeans, Intimates, Outerwear & Coats.
+      department: Men or Women. Most categories exist in both departments.
+      retail_price: List price.
+      cost: Unit cost to the company. Margin = sale_price - cost.
+      sku: Stock keeping unit code.
+      distribution_center_id: Shipping distribution centre (no distribution centre table is available).
+
+  users:
+    description: One row per customer.
+    columns:
+      id: Pseudonymous customer identifier. Use it to refer to individual customers.
+      age: Age in years.
+      gender: M or F.
+      city: City.
+      state: State, province or region.
+      country: "Country. Some values use local spellings: 'Deutschland' = Germany, 'España' = Spain."
+      traffic_source: "Acquisition channel: Search, Organic, Facebook, Email, Display."
+      created_at: When the customer signed up (TIMESTAMP, UTC).
+    pii:
+      first_name: name
+      last_name: name
+      email: email
+      street_address: address
+      postal_code: postal_code
+      latitude: geo
+      longitude: geo
+      user_geom: geo

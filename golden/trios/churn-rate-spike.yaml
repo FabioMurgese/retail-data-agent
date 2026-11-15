@@ -1,0 +1,32 @@
+id: churn-rate-spike
+question: Why did our churn rate spike last month?
+tags: [churn, retention, customers, monthly, spike, why, repeat purchase]
+author: analytics-team
+created: 2026-10-05
+sql: |
+  WITH monthly AS (
+    SELECT DISTINCT user_id, DATE_TRUNC(DATE(created_at), MONTH) AS month
+    FROM orders
+    WHERE status != 'Cancelled'
+  ),
+  cohort AS (
+    SELECT a.month, a.user_id, b.user_id IS NOT NULL AS retained
+    FROM monthly AS a
+    LEFT JOIN monthly AS b
+      ON b.user_id = a.user_id AND b.month = DATE_ADD(a.month, INTERVAL 1 MONTH)
+    WHERE a.month BETWEEN DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 7 MONTH), MONTH)
+                      AND DATE_TRUNC(DATE_SUB(CURRENT_DATE(), INTERVAL 2 MONTH), MONTH)
+  )
+  SELECT
+    DATE_ADD(month, INTERVAL 1 MONTH) AS churn_month,
+    COUNT(*) AS customers_previous_month,
+    ROUND(1 - AVG(IF(retained, 1, 0)), 4) AS churn_rate
+  FROM cohort
+  GROUP BY month
+  ORDER BY month
+report: |
+  Churn for month M = share of customers who ordered in M-1 and did not order again in M. Most
+  customers here buy rarely, so the level is structurally high: what matters is the change versus
+  previous months. To explain a spike, split the same metric by traffic_source, country and age
+  band, and check whether customer volume in M-1 jumped (a one-off acquisition wave inflates churn
+  the following month). Say clearly that this is a definition choice.

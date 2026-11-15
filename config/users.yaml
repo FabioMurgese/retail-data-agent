@@ -1,0 +1,38 @@
+# Demo identities for the CLI (`retail-agent chat --user <id>`).
+# In production identity comes from the IdP and the scope from an entitlement service.
+#
+# A scope is either `all_products: true` or a set of filters on the products table.
+# Values are OR-ed within a field and AND-ed across fields. Values are case-sensitive and must
+# match BigQuery exactly; `retail-agent doctor` checks them against live data.
+
+users:
+  ceo:
+    display_name: Morgan
+    role: Chief Executive Officer
+    scope:
+      all_products: true
+
+  alice:
+    display_name: Alice
+    role: Head of Womenswear
+    scope:
+      departments: [Women]
+
+  bob:
+    display_name: Bob
+    role: Denim & Trousers Category Manager
+    scope:
+      categories: [Jeans, Pants, Pants & Capris]
+
+  carol:
+    display_name: Carol
+    role: Brand Partnerships Lead
+    scope:
+      brands: [Calvin Klein, Levi's, Tommy Hilfiger]
+
+  dan:
+    display_name: Dan
+    role: Menswear Outerwear Buyer
+    scope:
+      departments: [Men]
+      categories: [Outerwear & Coats]

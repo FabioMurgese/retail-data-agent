@@ -1,0 +1,33 @@
+# Candidate trio proposed by bob on 2026-11-15 (trace 5fc68943610b).
+# Not used by the assistant until an analyst reviews it: check the SQL and definitions,
+# generalise the question, add tags, rewrite `report` as method notes (no current numbers),
+# then move this file to golden/trios/ (`retail-agent doctor` validates it).
+id: candidate-5fc68943610b
+question: What were my top 3 categories by net revenue in Q3 2026, and how did they change vs Q2?
+tags: []
+author: bob (via /good)
+created: 2026-11-15
+sql: |
+  SELECT
+    p.category,
+    ROUND(SUM(IF(DATE(oi.created_at) BETWEEN '2026-07-01' AND '2026-09-30', oi.sale_price, 0)), 2) AS q3_net_revenue,
+    ROUND(SUM(IF(DATE(oi.created_at) BETWEEN '2026-04-01' AND '2026-06-30', oi.sale_price, 0)), 2) AS q2_net_revenue
+  FROM order_items AS oi
+  JOIN products AS p ON p.id = oi.product_id
+  WHERE oi.status NOT IN ('Cancelled', 'Returned')
+    AND p.category IN ('Jeans', 'Pants', 'Pants & Capris')
+    AND DATE(oi.created_at) BETWEEN '2026-04-01' AND '2026-09-30'
+  GROUP BY p.category
+  ORDER BY q3_net_revenue DESC
+report: |
+  In Q3 2026, your top category by net revenue was **Jeans** at $101,574.00, followed by **Pants** at $33,226.57, and **Pants & Capris** at $15,622.00. All three of your categories grew compared to Q2 2026.
+
+  Here is the quarter-over-quarter comparison (net revenue for items not cancelled or returned):
+
+  | Category | Q3 2026 Net Revenue | Q2 2026 Net Revenue | Change ($) | Change (%) |
+  | :--- | :--- | :--- | :--- | :--- |
+  | **Jeans** | $101,574.00 | $82,825.25 | +$18,748.75 | +22.6% |
+  | **Pants** | $33,226.57 | $26,009.37 | +$7,217.20 | +27.8% |
+  | **Pants & Capris** | $15,622.00 | $12,286.44 | +$3,335.56 | +27.1% |
+
+  Would you like to break down these category growth figures by order volume and average order value?

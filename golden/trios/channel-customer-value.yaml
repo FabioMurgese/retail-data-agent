@@ -1,0 +1,31 @@
+id: channel-customer-value
+question: Which acquisition channel brings the most valuable customers?
+tags: [traffic source, channel, acquisition, marketing, customer value, repeat rate]
+author: analytics-team
+created: 2026-10-26
+sql: |
+  WITH customer_value AS (
+    SELECT
+      u.id,
+      u.traffic_source,
+      SUM(oi.sale_price) AS spend,
+      COUNT(DISTINCT oi.order_id) AS orders
+    FROM users AS u
+    JOIN order_items AS oi ON oi.user_id = u.id
+    WHERE oi.status NOT IN ('Cancelled', 'Returned')
+    GROUP BY u.id, u.traffic_source
+  )
+  SELECT
+    traffic_source,
+    COUNT(*) AS buying_customers,
+    ROUND(AVG(spend), 2) AS avg_customer_value,
+    ROUND(AVG(orders), 2) AS avg_orders_per_customer,
+    ROUND(COUNTIF(orders > 1) / COUNT(*), 4) AS repeat_rate
+  FROM customer_value
+  GROUP BY traffic_source
+  ORDER BY avg_customer_value DESC
+report: |
+  traffic_source is the channel that acquired the customer (Search, Organic, Facebook, Email,
+  Display); it describes the customer, not each order. Judge channels on value per buying customer
+  and repeat rate, not only on volume: Search brings most customers, which says little about their
+  quality. We have no marketing cost data, so do not claim ROI.

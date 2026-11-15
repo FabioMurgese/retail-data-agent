@@ -1,0 +1,30 @@
+# secrets
+.env
+*.json.key
+service-account*.json
+
+# python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+dist/
+build/
+
+# runtime data (anchored to the repo root: src/retail_agent/data/ is source code)
+/data/
+/logs/
+/reports/
+/.cache/
+
+# OS / editors
+.DS_Store
+.idea/
+
+# candidate trios proposed at runtime via /good: reviewed by an analyst, then moved to golden/trios/.
+# Only the README and one real example are tracked.
+/golden/candidates/*
+!/golden/candidates/README.md
+!/golden/candidates/2026-11-15-5fc68943610b.yaml

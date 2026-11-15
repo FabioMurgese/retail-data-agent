@@ -1,0 +1,24 @@
+id: top-customers-by-spend
+question: Who are our top 10 customers by total spend?
+tags: [customers, spend, ranking, lifetime value, best customers]
+author: analytics-team
+created: 2026-09-14
+sql: |
+  SELECT
+    u.id AS customer_id,
+    u.country,
+    u.age,
+    u.traffic_source,
+    COUNT(DISTINCT oi.order_id) AS orders,
+    ROUND(SUM(oi.sale_price), 2) AS net_revenue
+  FROM order_items AS oi
+  JOIN users AS u ON u.id = oi.user_id
+  WHERE oi.status NOT IN ('Cancelled', 'Returned')
+  GROUP BY customer_id, u.country, u.age, u.traffic_source
+  ORDER BY net_revenue DESC
+  LIMIT 10
+report: |
+  Ranked by net revenue (items not cancelled or returned), all time unless a period is given.
+  Customers are identified by id, with country, age and acquisition channel for context; never by
+  name or contact details. Before recommending loyalty actions, check whether top customers cluster
+  by country or channel, and how much of total revenue the top 1% represents.

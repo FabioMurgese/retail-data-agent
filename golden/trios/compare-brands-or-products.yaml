@@ -1,0 +1,24 @@
+id: compare-brands-or-products
+question: Compare the performance of Calvin Klein and Tommy Hilfiger and explain why they differ.
+tags: [compare, comparison, brand, product, performance, margin, returns, why]
+author: analytics-team
+created: 2026-09-21
+sql: |
+  SELECT
+    p.brand,
+    COUNTIF(oi.status NOT IN ('Cancelled', 'Returned')) AS net_units,
+    ROUND(SUM(IF(oi.status NOT IN ('Cancelled', 'Returned'), oi.sale_price, 0)), 2) AS net_revenue,
+    ROUND(AVG(oi.sale_price), 2) AS avg_selling_price,
+    ROUND(AVG(oi.sale_price - p.cost), 2) AS avg_unit_margin,
+    ROUND(COUNTIF(oi.status = 'Returned') / COUNTIF(oi.status IN ('Complete', 'Returned')), 4) AS return_rate,
+    COUNT(DISTINCT oi.user_id) AS customers
+  FROM order_items AS oi
+  JOIN products AS p ON p.id = oi.product_id
+  WHERE p.brand IN ('Calvin Klein', 'Tommy Hilfiger')
+  GROUP BY p.brand
+report: |
+  Compare both sides on volume (net units), price (average selling price), profitability (unit
+  margin = sale_price - cost), returns and reach (distinct customers), over the same period. The
+  "why" comes from these drivers plus product mix: rerun grouped by brand and category to see where
+  each one earns. The same pattern works for two products (filter on products.id or name) or two
+  categories. Brand and category values are case-sensitive: check them with SELECT DISTINCT.

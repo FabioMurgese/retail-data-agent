@@ -1,0 +1,32 @@
+id: state-spend-comparison
+question: Why are customers in Texas underspending compared to customers in California?
+tags: [state, region, geography, underspending, spending less, users, spend per customer, compare, why, drivers]
+author: analytics-team
+created: 2026-09-28
+sql: |
+  WITH customer_spend AS (
+    SELECT
+      u.state,
+      u.id AS customer_id,
+      COUNT(DISTINCT oi.order_id) AS orders,
+      SUM(oi.sale_price) AS spend
+    FROM users AS u
+    JOIN order_items AS oi ON oi.user_id = u.id
+    WHERE oi.status NOT IN ('Cancelled', 'Returned')
+      AND u.state IN ('Texas', 'California')
+    GROUP BY u.state, customer_id
+  )
+  SELECT
+    state,
+    COUNT(*) AS buying_customers,
+    ROUND(AVG(spend), 2) AS avg_spend_per_customer,
+    ROUND(AVG(orders), 2) AS avg_orders_per_customer,
+    ROUND(SUM(spend) / SUM(orders), 2) AS avg_order_value
+  FROM customer_spend
+  GROUP BY state
+report: |
+  "Underspending" means lower spend per buying customer, not lower total revenue (large states win
+  on totals). Decompose spend per customer = orders per customer x average order value, then compare
+  category mix, traffic_source mix and age profile of the two states with follow-up queries.
+  States are stored by full name ('California'), and the same state name can exist in several
+  countries: add a country filter when it matters.
