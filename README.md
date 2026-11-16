@@ -96,7 +96,7 @@ SQL guard for every user), the live BigQuery schema against the policy, the prod
 live data, and which Gemini models your key can use. It makes no generation calls. Expected ending:
 
 ```text
-✓ Scope dan          Menswear Outerwear Buyer: department in ['Men']; category in ['Outerwear & Coats']
+✓ Scope dan          Brand Manager, Carhartt: brand in ['Carhartt']
 ✓ Gemini agent       gemini-3.5-flash-lite (Gemini 3.5 Flash Lite)
 ✓ Gemini fallback    gemini-3.1-flash-lite (Gemini 3.1 Flash Lite)
 ✓ Gemini fallback    gemini-3.6-flash (Gemini 3.6 Flash)
@@ -111,22 +111,23 @@ Ready.
 retail-agent chat --user alice
 ```
 
-Demo users ([`config/users.yaml`](config/users.yaml)). Authentication is out of scope for the CLI;
-in production the identity comes from SSO.
+Demo users ([`config/users.yaml`](config/users.yaml)). Access is by brand: each manager sees the
+products, orders and customers of their brands, and the CEO sees everything. Authentication is out of
+scope for the CLI; in production the identity comes from SSO.
 
 | `--user` | Role | Can analyse |
 |---|---|---|
 | `ceo` | Chief Executive Officer | all products |
-| `alice` | Head of Womenswear | department Women |
-| `bob` | Denim & Trousers Category Manager | categories Jeans, Pants, Pants & Capris |
-| `carol` | Brand Partnerships Lead | brands Calvin Klein, Levi's, Tommy Hilfiger |
-| `dan` | Menswear Outerwear Buyer | department Men **and** category Outerwear & Coats |
+| `alice` | Brand Manager, Premium Denim | 7 For All Mankind, True Religion, Joe's Jeans, AG Adriano Goldschmied |
+| `bob` | Brand Manager, Outdoor | The North Face, Columbia, Arc'teryx, Canada Goose, Mountain Hardwear |
+| `carol` | Brand Partnerships Lead | Calvin Klein, Levi's, Tommy Hilfiger |
+| `dan` | Brand Manager, Carhartt | Carhartt |
 
 Questions to try:
 - *What data do we have, and what can I ask?*
 - *Who are our top 5 customers by total spend?*
 - *Compare Calvin Klein and Levi's this year and explain why they perform differently.*
-  (as `carol` or `ceo`)
+  (as `carol` or `ceo`; as `alice` both brands are outside her portfolio)
 - *Why are customers in Texas underspending compared to customers in California?*
 - *Create a report for Q3 2026 including insights and action items for Q4.*
 - *Delete all the reports we made in this conversation.*
@@ -134,95 +135,101 @@ Questions to try:
 
 ## Example session
 
-A real session as `alice` on 2026-11-15, abridged (`…`). The dataset is regenerated every night, so your
-numbers will differ.
+A real session as `alice`, a brand manager for four premium denim brands, on 2026-11-16, abridged
+(`…`). The dataset is regenerated every night, so your numbers will differ.
 
 ```text
-TheLook data assistant · signed in as Alice (Head of Womenswear) · scope: products where department in (Women)
+TheLook data assistant · signed in as Alice (Brand Manager, Premium Denim) · scope: products of the
+brands 7 For All Mankind, True Religion, Joe's Jeans, AG Adriano Goldschmied
 
-alice> What were my top 3 categories by net revenue last month, and how did they change versus the month before?
-  analyst examples: monthly-revenue-trend, revenue-by-country, return-rate-by-category (embedding)
-  ▸ Top 3 categories by net revenue last month and prior month comparison
-    ✓ 6 rows · 1.1s · 21 MB billed
+alice> How did my brands perform last month compared with the month before?
+  analyst examples: compare-brands-or-products, monthly-revenue-trend, churn-rate-spike (embedding)
+  ▸ Compare net revenue, net units, average selling price, unit margin, return rate, and customers
+    for the user's brands between last month and the month before.
+    ✓ 2 rows · 1.1s · 21 MB billed
+  ▸ Break down net revenue and net units by brand for September and October 2026.
+    ✓ 8 rows · 0.9s · 21 MB billed
 
-Your top 3 women's categories by net revenue last month (October 2026) were Outerwear & Coats,
-Intimates, and Jeans. All three grew significantly compared to the prior month (September 2026),
-driven primarily by higher order volumes.
+Net revenue for your premium denim brands grew by $1,034.66 (+6.7%) in October 2026 compared to
+September 2026, driven by higher order volume and a lower return rate, despite a slight dip in
+average selling prices.
 
- Category           September 2026 Net Revenue  October 2026 Net Revenue  Change ($)  Change (%)
- ───────────────────────────────────────────────────────────────────────────────────────────────
- Outerwear & Coats                  $14,593.30                $19,961.60  +$5,368.30      +36.8%
- Intimates                          $15,752.58                $19,306.71  +$3,554.13      +22.6%
- Jeans                              $13,061.54                $18,767.40  +$5,705.86      +43.7%
+ Metric                 September 2026  October 2026  Change
+ ───────────────────────────────────────────────────────────────────────────
+ Net Revenue            $15,402.42      $16,437.08    +$1,034.66 (+6.7%)
+ Net Units Sold         94              106           +12 units (+12.8%)
+ Active Customers       129             149           +20 customers (+15.5%)
+ Average Selling Price  $164.05         $161.30       -$2.75 (-1.7%)
+ …
+ • Brand Mix Shift: True Religion was the primary growth engine, surging from $4,285.40 in September
+   to $6,115.15 in October (+42.7%), overtaking 7 For All Mankind as your top-selling brand …
+(Note: November 2026 is excluded as the current month is still in progress).
 
- • Outerwear & Coats rose from $14.59K to $19.96K (+36.8%), driven by a 26.2% increase in orders
-   (from 103 to 130) …
-(Note: November 2026 is excluded as the current month is still incomplete.)
-
-Would you like to examine the return rates for these top three categories?
-trace 5880f7271fd5
+Would you like to analyze which product categories drove the surge in True Religion sales last month?
+trace 8643b848b5e5
 
 alice> Show me the email addresses of the customers who bought them.
 I can't share personal data about customers (names, emails, phone numbers, addresses or exact
 locations). I can analyse customers by id, age, gender, city, state, country or acquisition channel,
 for example "top 10 customers by spend, with their country and age".
-trace 496e002cc936
+trace df7246e46113
 
 alice> Create a short report on this with action items for next month.
-  ▸ Get October and September 2026 revenue by category for women's department
-    ✓ 3 rows · 1.0s · 21 MB billed
-  ▸ Get traffic sources and return rates for top 3 categories in October 2026
-    ✓ 3 rows · 0.9s · 21 MB billed
-  …
+  ▸ Monthly performance breakdown by brand for September and October 2026
+    ✓ 8 rows · 1.0s · 21 MB billed
+  ▸ Monthly return rate by brand for September and October 2026
+    ✓ 8 rows · 1.0s · 21 MB billed
+  ▸ Traffic source breakdown for September and October 2026 revenue
+    ✓ 10 rows · 1.2s · 31 MB billed
   ▸ save report
-    ✎ the answer will be saved as "Top 3 Women's Categories Performance: October 2026 vs September 2026"
+    ✎ the answer will be saved as "October 2026 Brand Performance & Action Plan"
 
-  Top 3 Women's Categories Performance: October 2026 vs September 2026
-  Executive summary · Key findings · Why it happened · Action items (owner, priority, impact) · Method and caveats
+  October 2026 Brand Performance & Action Plan
+  Executive summary · Key findings · Why it happened · Action items · Method and caveats
   …
-Saved to your reports as r-1c895fe7: Top 3 Women's Categories Performance: October 2026 vs September 2026
-trace a38865ded23e
+  • Brand Momentum: Consumer demand shifted toward True Religion styles, while 7 For All Mankind
+    experienced a slight lull in order frequency. (Hypothesis to verify: promotional placement or
+    stock availability favored True Religion during October).
+  …
+Saved to your reports as r-3e2125eb: October 2026 Brand Performance & Action Plan
+trace a2ab72b21bcf
 
 alice> Delete all the reports we made in this conversation.
   ▸ delete reports
-╭──────────────────────────────── Confirm deletion ────────────────────────────────╮
-│ Delete your report created in this conversation?                                 │
-│                                                                                  │
-│   id            title                                                 created    │
-│   r-1c895fe7    Top 3 Women's Categories Performance: October 2026…   2026-11-15 │
-│                                                                                  │
-│ Type delete 1 to confirm. Anything else cancels.                                 │
-╰──────────────────────────────────────────────────────────────────────────────────╯
+╭──────────────────────────────────────── Confirm deletion ────────────────────────────────────────╮
+│ Delete your report created in this conversation?                                                 │
+│                                                                                                  │
+│   id            title                                           created                          │
+│   r-3e2125eb    October 2026 Brand Performance & Action Plan    2026-11-16 10:57                 │
+│                                                                                                  │
+│ Type delete 1 to confirm. Anything else cancels.                                                 │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────╯
 confirm> delete 1
 Confirmed.
     ✓ deleted 1 report(s)
 
-I have deleted the report from your library as requested.
-trace 19edd0c1270a
+I have deleted the report created in this conversation.
+trace b8c7d3236f92
 
 alice> /trace
-Trace 19edd0c1270a · alice · 2026-11-15 22:36:02 UTC · ok · 1.7s
-LLM: gemini-3.5-flash-lite ×2 · 10,215 tokens in / 27 out · SQL: 0 queries, 0 MB billed
+Trace b8c7d3236f92 · alice · 2026-11-16 10:57:36 UTC · ok · 2.3s
+LLM: gemini-3.5-flash-lite ×2 · 10,720 tokens in / 26 out · SQL: 0 queries, 0 MB billed
 +  0.0s input guard  ok (ok)
-+  0.3s examples     embedding: quarterly-report 0.618, churn-rate-spike 0.561, monthly-revenue-trend 0.542
-+  0.9s llm          gemini-3.5-flash-lite · 0.6s · 5,069→16 tok · → delete_reports
-+  0.9s confirmation confirmed: 1 report(s) created in this conversation
-+  1.0s delete_reports deleted · 0.0s
-+  1.6s llm          gemini-3.5-flash-lite · 0.7s · 5,146→11 tok · → answer
-+  1.7s output       unbacked figures: none · PII masked: none · report saved: no
++  0.4s examples     embedding: quarterly-report 0.618, churn-rate-spike 0.561, monthly-revenue-trend 0.542
++  1.3s llm          gemini-3.5-flash-lite · 0.9s · 5,327→16 tok · → delete_reports
++  1.4s confirmation confirmed: 1 report(s) created in this conversation
++  1.4s delete_reports deleted · 0.1s
++  2.2s llm          gemini-3.5-flash-lite · 0.8s · 5,393→10 tok · → answer
++  2.3s output       unbacked figures: none · PII masked: none · report saved: no
 ```
 
 What the session shows:
-- The model's SQL filtered on `department = 'Women'` itself, but the guard would have enforced that
-  scope anyway: see the SQL before and after the guard with `retail-agent trace 5880f7271fd5 --full`.
+- Every query was rewritten to alice's four brands by the SQL guard, whatever the model wrote: see the
+  SQL before and after the guard with `retail-agent trace <id> --full`.
 - The email request was blocked before reaching the model, at no cost.
-- The report used the persona's template.
+- The report used the persona's template and labelled an unverified cause as a hypothesis.
 - The delete waited for an exact typed confirmation.
-
-One honest caveat: the full report states a cause that no query supports ("stronger seasonal demand as
-temperatures cooled") without labelling it as a hypothesis. This is the residual weakness of the small
-free-tier model on "why" questions that the evaluation found. See
-[TECHNICAL.md §9](docs/TECHNICAL.md#9-limitations-and-next-steps).
+- Calls per question: 3 for the analysis, 0 for the blocked request, 5 for the report, 2 for the delete.
 
 ## Commands
 
@@ -267,7 +274,7 @@ See [evals/README.md](evals/README.md) for how each case is checked and how the 
 | File | Owner | Controls |
 |---|---|---|
 | [`config/persona.yaml`](config/persona.yaml) | business (e.g. the CEO's office) | tone, style rules, report template; applied from the next message |
-| [`config/users.yaml`](config/users.yaml) | data stewards | who can analyse which products |
+| [`config/users.yaml`](config/users.yaml) | data stewards | which brands each manager can analyse |
 | [`config/pii_policy.yaml`](config/pii_policy.yaml) | data stewards | the column allowlist and the PII columns |
 | [`golden/trios/`](golden/trios) | analysts | question → SQL → method notes, used as examples ([candidates](golden/candidates/README.md) await review) |
 

@@ -79,7 +79,8 @@ def test_a_turn_is_recorded_step_by_step_and_masked(settings):
         e for e in app.session.events.events(trace_id=app.last_trace_id) if e["kind"] == "tool_call"
     )
     assert tool_event["data"]["args"]["sql"] == "SELECT COUNT(*) AS n FROM orders"  # as the model wrote it
-    assert "department IN ('Women')" in tool_event["data"]["artifact"]["guarded_sql"]  # as BigQuery ran it
+    guarded = tool_event["data"]["artifact"]["guarded_sql"]
+    assert "brand IN ('7 For All Mankind'" in guarded  # as BigQuery ran it
 
     lines = (settings.logs_dir / "agent.jsonl").read_text().splitlines()
     assert [json.loads(line)["kind"] for line in lines] == kinds(app)  # same events, shippable as JSON lines

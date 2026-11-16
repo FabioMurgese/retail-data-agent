@@ -34,7 +34,7 @@ checked in code (`src/retail_agent/evals.py`):
 Each run uses an isolated workspace (`data/evals/<run>/`, git-ignored): an empty report library per
 case, and its own traces and metrics, so evals never touch real users' data.
 
-## Results history (2026-11-15)
+## Results history (2026-11-15/16)
 
 Results are kept to show how the suite drove the design. Details per run: `results/<run>.md` (answers
 and failed checks) and `results/<run>.json` (everything, for diffs).
@@ -47,6 +47,12 @@ and failed checks) and `results/<run>.json` (everything, for diffs).
 | `20261115-155727` | 18/19 | **The `verify` node fixed a real hallucination live** (an invented $3.68M became the queried $443K across bob's categories). Two findings: the answer called out-of-scope data "not carried / $0" (→ prompt rule: invisible ≠ absent), and *empty-result-recovery* checked the path instead of the result (→ the case now checks the real value). |
 | `20261115-160439`, `-160450` | the two changed cases: pass | |
 | `20261115-160510` | **19/19** | All judged answers 5/5; one more live self-correction (empty-result-recovery). 46 LLM calls, 26 queries, 388 MB billed. |
+| `20261116-105121` | the 6 scope cases: **6/6** | Rerun after access became brand-only (below). The quarterly report scored 5/5 with 4 LLM calls for 5 queries: the model ran some queries in parallel. |
+
+On 2026-11-16 the demo scopes changed: OpsFleet confirmed that access is by brand only, so alice, bob
+and dan became brand managers. The runs before `20261116-105121` used the previous department and
+category scopes. The scope cases now ask for other brands, and check that no other brand appears in any
+query result.
 
 The model is nondeterministic: in production run the suite several times per release and compare
 pass rates with the previous release rather than trusting a single run.

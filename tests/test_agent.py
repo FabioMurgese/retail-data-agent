@@ -33,9 +33,9 @@ def test_question_to_answer_through_the_guard(settings):
 
     state = ask(graph, "How many products per department?", trace="tr-42")
 
-    # the SQL that reached BigQuery is the guarded one, scoped to alice's department
+    # the SQL that reached BigQuery is the guarded one, scoped to alice's brands
     executed, labels = runner.calls[0]
-    assert "department IN ('Women')" in executed and "`thelook_ecommerce`.`products`" in executed
+    assert "brand IN ('7 For All Mankind'" in executed and "`thelook_ecommerce`.`products`" in executed
     assert labels == {"trace_id": "tr-42", "user": "alice"}
     # the model read a compact CSV, and the final answer had its email masked
     tool_message = next(m for m in state["messages"] if isinstance(m, ToolMessage))
@@ -54,8 +54,8 @@ def test_system_prompt_has_scope_schema_examples_and_persona(settings):
     system = model.calls[0][0]
     assert isinstance(system, SystemMessage)
     prompt = system.content
-    assert "products where department in (Women)" in prompt
-    assert 'Present results as "for your products"' in prompt
+    assert "products of the brands 7 For All Mankind, True Religion, Joe's Jeans, AG Adriano" in prompt
+    assert 'Present results as "for your brands"' in prompt
     assert "Today is 2026-11-15" in prompt
     assert "### users: One row per customer." in prompt
     assert not [

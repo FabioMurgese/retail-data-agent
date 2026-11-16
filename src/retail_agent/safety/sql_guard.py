@@ -18,7 +18,7 @@ becomes (abridged)
       SELECT id, age, gender, city, state, country, traffic_source, created_at
       FROM `bigquery-public-data`.`thelook_ecommerce`.`users`
       WHERE id IN (SELECT user_id FROM ...order_items WHERE product_id IN
-                     (SELECT id FROM ...products WHERE department IN ('Women')))
+                     (SELECT id FROM ...products WHERE brand IN ('Carhartt')))
     ) AS u GROUP BY 1 LIMIT 1001
 
 Refusals raise `SqlGuardError` with a message written for the LLM, so it can fix its query, and a

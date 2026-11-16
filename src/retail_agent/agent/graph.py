@@ -60,7 +60,7 @@ TOKEN_BUDGET_REPLY = (
 )
 REVISION_NOTE = (
     "[Automatic check, not from the user] Your draft answer contains figures that do not appear in any "
-    "query result for this question: {figures}. Never present numbers you have not queried. Run the "
+    "query result in this conversation: {figures}. Never present numbers you have not queried. Run the "
     "queries that produce them, or rewrite the answer without them; a figure derived from the results "
     "(a difference, a rate, a share) is fine if you say how you computed it. Your draft was:\n\n{draft}"
 )
@@ -80,7 +80,7 @@ class AgentState(MessagesState):
     pending_report: dict[str, Any] | None  # set by save_report; the final answer becomes the report
     saved_report: dict[str, Any] | None
     degraded: str | None  # why the turn ended early: llm_unavailable / llm_auth / token_budget ...
-    ungrounded: list[str]  # figures in the answer not found in this turn's query results
+    ungrounded: list[str]  # figures in the answer not found in any query result of the conversation
     revision_note: str | None  # verify -> agent: feedback for the one allowed revision of this turn
     revision: dict[str, Any] | None  # what triggered the revision (for observability)
 

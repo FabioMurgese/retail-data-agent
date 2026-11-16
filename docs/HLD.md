@@ -21,7 +21,8 @@ choice, the per-requirement design and the error handling are in [TECHNICAL.md](
 ## 1. Goals and principles
 
 **Users.** Non-technical executives. They ask questions in plain language, discuss the answers, and ask
-for reports with action items. Each executive may analyse only the products they are responsible for.
+for reports with action items. Each manager may analyse only the brands they are responsible for; the
+CEO sees everything.
 
 **Principles that shape the design**
 
@@ -29,7 +30,7 @@ for reports with action items. Each executive may analyse only the products they
 |---|---|
 | **Security is enforced in code at the data-access layer, never only in the prompt.** | The LLM writes SQL, but a deterministic guard parses and rewrites every query before BigQuery sees it. In production, BigQuery's own column- and row-level security sits behind the guard as well. A model can be talked into anything; the guard and the database cannot. |
 | **Deterministic controls around a non-deterministic model.** | Input screening, the SQL guard, PII masking, the grounding check and the human confirmation for deletes are graph nodes and code paths, not prompt instructions. |
-| **Every number must come from a query.** | Analysts reuse the golden examples. A grounding check verifies every figure in an answer against this turn's query results and asks the model for one revision when figures are unbacked. |
+| **Every number must come from a query.** | Analysts reuse the golden examples. A grounding check verifies every figure in an answer against the conversation's query results and asks the model for one revision when figures are unbacked. |
 | **Business-owned configuration.** | Tone, product scopes, the PII policy and the golden examples are data, not code. They change without a redeploy. |
 | **Graceful degradation, bounded cost.** | Every dependency has a timeout, a retry budget, a fallback or a circuit breaker. Every turn has a budget for queries, failures, tokens and steps. The user always gets an answer, even if that answer explains what failed. |
 | **Everything is traceable.** | Every turn has a `trace_id` that follows it through the logs, the LLM calls, BigQuery job labels and the audit trail. |
@@ -165,7 +166,7 @@ flowchart TD
 | `prepare_context` | Retrieves the top-3 golden trios for the question (embeddings, with BM25 as fallback). Builds the system prompt from the fixed rules, the user's scope, the schema (generated from the allowlist, so PII columns are never even named), the trios, the persona and the saved preferences. | 1 embedding call |
 | `agent` | Calls Gemini through a fallback chain of models, each with a rate limiter and a circuit breaker. Enforces the per-turn token budget. | 1 LLM call |
 | `tools` | `run_sql` = budget check → SQL guard → BigQuery (dry-run, then execute) → PII masker → at most 50 rows as CSV. The report and preference tools always filter by the session's owner. | 1 query |
-| `verify` | Checks every significant figure in the draft against the numbers in this turn's query results, including their sums, differences and column totals. If some are unbacked, it removes the draft and asks the model for **one** revision. | 0, or 1 extra LLM call when triggered |
+| `verify` | Checks every significant figure in the draft against the numbers in the conversation's query results, including their sums, differences and column totals. If some are unbacked, it removes the draft and asks the model for **one** revision. | 0, or 1 extra LLM call when triggered |
 | `finalize` | Masks PII in the answer, adds a caveat if figures are still unbacked, and saves the report if one was requested. A degraded turn is never saved. | free |
 
 Each executive message is one **turn**, with its own `trace_id`. The history sent to the model contains
@@ -324,7 +325,7 @@ case; together they make a single failure harmless.
 
 | # | Layer | Stops | Where |
 |---|---|---|---|
-| 1 | Identity from SSO, scope from the entitlement mapping | impersonating another user, or claiming a scope through the chat ("my manager approved menswear…") | IAP → agent session (prototype: `--user`) |
+| 1 | Identity from SSO, scope from the entitlement mapping | impersonating another user, or claiming a scope through the chat ("my manager approved access to every brand…") | IAP → agent session (prototype: `--user`) |
 | 2 | Input guard (deterministic) + Model Armor | prompt injection, jailbreaks, direct requests for personal data | `input_guard` node |
 | 3 | Fixed rules in the system prompt, which the persona cannot override | off-topic requests, revealing instructions, data values treated as instructions | prompt assembly |
 | 4 | Schema generated from the allowlist | the model never learns that PII columns exist | prompt assembly |

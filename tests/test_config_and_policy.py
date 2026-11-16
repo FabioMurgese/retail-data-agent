@@ -134,9 +134,15 @@ def test_scopes_fail_closed(scope):
         ProductScope.model_validate(scope)
 
 
-def test_scope_filters_map_to_product_columns():
-    scope = ProductScope(departments=("Men",), categories=("Outerwear & Coats",))
-    assert scope.filters == {"department": ("Men",), "category": ("Outerwear & Coats",)}
+def test_scope_filters_map_to_the_brand_column():
+    assert ProductScope(brands=("Levi's", "Carhartt")).filters == {"brand": ("Levi's", "Carhartt")}
+    assert ProductScope(all_products=True).filters == {}
+
+
+@pytest.mark.parametrize("field", ["departments", "categories"])
+def test_brand_is_the_only_access_dimension(field):
+    with pytest.raises(ValueError, match=f"access is by brand only: replace {field}"):
+        ProductScope.model_validate({field: ["Women"]})
 
 
 def test_unknown_user_lists_known_users(tmp_path):
@@ -145,7 +151,7 @@ def test_unknown_user_lists_known_users(tmp_path):
         USERS_FILE,
         """
 users:
-  alice: {display_name: A, role: r, scope: {departments: [Women]}}
+  alice: {display_name: A, role: r, scope: {brands: [Levi's]}}
 """,
     )
     with pytest.raises(UnknownUserError, match="Known users: alice"):

@@ -87,9 +87,8 @@ def describe_scope(profile: UserProfile) -> str:
     scope = profile.scope
     if scope.all_products:
         return "all products (company-wide data)"
-    labels = {"department": "department", "category": "category", "brand": "brand"}
-    parts = [f"{labels[column]} in ({', '.join(values)})" for column, values in scope.filters.items()]
-    return "products where " + " and ".join(parts)
+    noun = "brand" if len(scope.brands) == 1 else "brands"
+    return f"products of the {noun} {', '.join(scope.brands)}"
 
 
 def render_schema(policy: DataPolicy) -> str:
@@ -145,7 +144,7 @@ def build_system_prompt(
     wording = (
         "Results are company-wide."
         if profile.scope.all_products
-        else 'Present results as "for your products", never as company-wide totals.'
+        else 'Present results as "for your brands", never as company-wide totals.'
     )
     user = f"## Current user\n{profile.display_name}, {profile.role}."
     core = _CORE.format(today=today.isoformat(), max_rows=max_rows, scope=scope, scope_wording=wording)

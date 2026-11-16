@@ -41,6 +41,14 @@ def test_figures_backed_by_results_pass(text):
     assert ungrounded_figures(text, turn(RESULT)) == []
 
 
+def test_figures_queried_earlier_in_the_conversation_are_grounded():
+    earlier = [*turn(RESULT), AIMessage("Q3 revenue was $7,151.45. Margin was $1,234,567.")]
+    later = [*earlier, HumanMessage("Create a short report on this.")]
+    # $7,151.45 (the column total) was queried one question ago; $1,234,567 only appeared in an
+    # earlier *answer*, which is a claim, not evidence
+    assert ungrounded_figures("Report: revenue $7,151.45, margin $1,234,567.", later) == ["$1,234,567"]
+
+
 def test_exact_looking_figures_after_a_bound_word_are_still_checked():
     assert ungrounded_figures("Revenue was nearly $7,151.99.", turn(RESULT)) == ["$7,151.99"]
 

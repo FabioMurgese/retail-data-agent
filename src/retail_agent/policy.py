@@ -5,8 +5,8 @@ Both files are meant to be edited by data stewards, not developers:
 - `config/pii_policy.yaml` is an **allowlist**. A column is usable only if it is listed under
   `columns`. PII columns are listed under `pii` so the output masker and the docs know what they
   are. A column in neither list (e.g. one added upstream later) stays hidden.
-- `config/users.yaml` maps each user to a product scope. Scopes fail closed: a user without an
-  explicit scope cannot be loaded.
+- `config/users.yaml` maps each user to the brands they are responsible for (or all products).
+  Scopes fail closed: a user without an explicit scope cannot be loaded.
 
 This module only validates and exposes the policy; `safety.sql_guard` enforces it on SQL.
 """
@@ -73,31 +73,29 @@ class DataPolicy(_Strict):
 
 
 class ProductScope(_Strict):
-    """Products a user may analyse.
-
-    Values are OR-ed within a field and AND-ed across fields: `departments: [Men]` plus
-    `categories: [Jeans]` means men's jeans only.
-    """
+    """Products a user may analyse. Access is by brand only: a manager is responsible for one or more
+    brands; the CEO has `all_products`. Products without a brand are in no manager's scope."""
 
     all_products: bool = False
-    departments: tuple[str, ...] = ()
-    categories: tuple[str, ...] = ()
     brands: tuple[str, ...] = ()
+
+    @model_validator(mode="before")
+    @classmethod
+    def _brand_is_the_only_dimension(cls, data: object) -> object:
+        if isinstance(data, dict) and (other := sorted({"departments", "categories"} & data.keys())):
+            raise ValueError(f"access is by brand only: replace {', '.join(other)} with `brands: [...]`")
+        return data
 
     @model_validator(mode="after")
     def _explicit_scope(self) -> ProductScope:
-        has_filters = bool(self.departments or self.categories or self.brands)
-        if self.all_products == has_filters:
-            raise ValueError(
-                "set either `all_products: true` or at least one of departments/categories/brands, not both"
-            )
+        if self.all_products == bool(self.brands):
+            raise ValueError("set either `all_products: true` or a non-empty `brands` list, not both")
         return self
 
     @property
     def filters(self) -> dict[str, tuple[str, ...]]:
-        """Non-empty filters, keyed by the `products` column they apply to."""
-        candidates = {"department": self.departments, "category": self.categories, "brand": self.brands}
-        return {column: values for column, values in candidates.items() if values}
+        """Non-empty filters, keyed by the `products` column they apply to (only `brand`)."""
+        return {"brand": self.brands} if self.brands else {}
 
 
 class UserProfile(_Strict):

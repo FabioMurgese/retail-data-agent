@@ -1,12 +1,12 @@
-"""Grounding check: are the figures in an answer backed by this turn's query results?
+"""Grounding check: are the figures in an answer backed by query results in this conversation?
 
 Observed failure that motivated it: after a filter matched nothing, the model "helpfully" gave
 revenue for the corrected value without querying it, and the figures changed between runs.
 
 Deterministic and free (no LLM call). Every significant figure in the final answer (>= 100, not a
-year, a date, a percentage or a round number like "top 100") must match a number seen this turn: a
-value in a tool result, a column total or average, or a number in the user's question, within the
-rounding the answer uses
+year, a date, a percentage or a round number like "top 100") must match a number from this
+conversation's evidence: a value in a tool result, a column total or average, or a number the user
+wrote, within the rounding the answer uses
 ("$7,700" matches 7700.26; "$4.1M" matches 4_068_574). Unmatched figures are listed at the end of
 the answer, so an executive never reads an unbacked number as fact, and recorded for observability.
 
@@ -74,13 +74,15 @@ def figures(text: str) -> list[tuple[str, float, float]]:
 
 
 def source_numbers(messages: Sequence[AnyMessage]) -> list[float]:
-    """Numbers the model saw this turn: tool results (+ column totals and averages) and the question."""
+    """Numbers backed by evidence in this conversation: every query result (+ column totals and
+    averages) and the user's own messages. Earlier turns count, as the prompt rule says ("from a query
+    result in this conversation"): a report on figures queried one question ago is grounded. The
+    assistant's earlier answers do not count: they are claims, not evidence."""
     numbers: list[float] = []
-    for message in reversed(messages):
+    for message in messages:
         if isinstance(message, HumanMessage):
             numbers += [float(n) for n in _NUMBER.findall(message.text.replace(",", ""))]
-            break
-        if isinstance(message, ToolMessage) and isinstance(message.content, str):
+        elif isinstance(message, ToolMessage) and isinstance(message.content, str):
             numbers += _numbers_in_tool_result(message.content)
     return numbers
 

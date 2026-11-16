@@ -107,19 +107,21 @@ def where_of(sql: str, table: str) -> str:
 
 
 def test_scope_filters_each_table_through_products():
-    guard = guard_for("alice")
-    women = "department IN ('Women')"
-    assert where_of(guard.check("SELECT * FROM products").sql, "products") == f"WHERE {women}"
-    assert women in where_of(guard.check("SELECT * FROM order_items").sql, "order_items")
+    guard = guard_for("dan")
+    carhartt = "brand IN ('Carhartt')"
+    assert where_of(guard.check("SELECT * FROM products").sql, "products") == f"WHERE {carhartt}"
+    assert carhartt in where_of(guard.check("SELECT * FROM order_items").sql, "order_items")
     orders_where = where_of(guard.check("SELECT * FROM orders").sql, "orders")
-    assert orders_where.startswith("WHERE order_id IN (SELECT order_id FROM") and women in orders_where
+    assert orders_where.startswith("WHERE order_id IN (SELECT order_id FROM") and carhartt in orders_where
     users_where = where_of(guard.check("SELECT * FROM users").sql, "users")
-    assert users_where.startswith("WHERE id IN (SELECT user_id FROM") and women in users_where
+    assert users_where.startswith("WHERE id IN (SELECT user_id FROM") and carhartt in users_where
 
 
-def test_scope_dimensions_are_and_ed():
-    sql = guard_for("dan").check("SELECT * FROM products").sql
-    assert where_of(sql, "products") == "WHERE department IN ('Men') AND category IN ('Outerwear & Coats')"
+def test_several_brands_are_or_ed():
+    sql = guard_for("bob").check("SELECT * FROM products").sql
+    assert where_of(sql, "products") == (
+        "WHERE brand IN ('The North Face', 'Columbia', 'Arc\\'teryx', 'Canada Goose', 'Mountain Hardwear')"
+    )
 
 
 def test_scope_values_are_escaped():
@@ -136,7 +138,7 @@ def test_unrestricted_user_has_no_row_filter():
 def test_new_table_without_scope_rule_fails_closed():
     extended = POLICY.model_copy(update={"tables": {**POLICY.tables, "events": POLICY.tables["orders"]}})
     with pytest.raises(ValueError, match="no product-scope rule for table 'events'"):
-        SqlGuard(extended, ProductScope(departments=("Men",)), max_rows=10)
+        SqlGuard(extended, ProductScope(brands=("Carhartt",)), max_rows=10)
 
 
 # --- LIMIT ----------------------------------------------------------------------------------------

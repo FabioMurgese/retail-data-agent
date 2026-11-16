@@ -1,9 +1,12 @@
-# Demo identities for the CLI (`retail-agent chat --user <id>`).
-# In production identity comes from the IdP and the scope from an entitlement service.
+# Demo identities for the CLI (`retail-agent chat --user <id>`) and their data access.
+# In production identity comes from the IdP and this mapping from an access table or entitlement service.
 #
-# A scope is either `all_products: true` or a set of filters on the products table.
-# Values are OR-ed within a field and AND-ed across fields. Values are case-sensitive and must
-# match BigQuery exactly; `retail-agent doctor` checks them against live data.
+# Access is by brand only: each manager is responsible for one or more brands and sees every product,
+# order and customer connected to those brands. The CEO sees everything (`all_products: true`).
+# Products without a brand belong to no manager's portfolio, so only `all_products` users see them.
+#
+# Brand names are case-sensitive and must match BigQuery exactly ("Calvin Klein" and "Calvin Klein
+# Jeans" are different brands); `retail-agent doctor` checks every name against live data.
 
 users:
   ceo:
@@ -14,15 +17,15 @@ users:
 
   alice:
     display_name: Alice
-    role: Head of Womenswear
+    role: Brand Manager, Premium Denim
     scope:
-      departments: [Women]
+      brands: [7 For All Mankind, True Religion, Joe's Jeans, AG Adriano Goldschmied]
 
   bob:
     display_name: Bob
-    role: Denim & Trousers Category Manager
+    role: Brand Manager, Outdoor
     scope:
-      categories: [Jeans, Pants, Pants & Capris]
+      brands: [The North Face, Columbia, Arc'teryx, Canada Goose, Mountain Hardwear]
 
   carol:
     display_name: Carol
@@ -32,7 +35,6 @@ users:
 
   dan:
     display_name: Dan
-    role: Menswear Outerwear Buyer
+    role: Brand Manager, Carhartt
     scope:
-      departments: [Men]
-      categories: [Outerwear & Coats]
+      brands: [Carhartt]
