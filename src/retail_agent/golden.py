@@ -10,8 +10,10 @@ If embeddings are unavailable (no key, quota, outage) the retriever falls back t
 question and tags, so a failure here degrades relevance a little and never blocks a turn.
 
 Learning loop (system level): a user's `/good` on an answer backed by queries writes a *candidate*
-trio to `golden/candidates/`. Candidates are never retrieved: an analyst reviews, generalises and
-moves them to `golden/trios/` (in production: a review queue, see docs/HLD.md).
+trio to `golden/candidates/`. Candidates are never retrieved. `retail-agent golden curate`
+(`curation.py`) checks, generalises and judges them automatically: safe, novel, well-judged ones join
+`golden/trios/` with `status: probation`; doubtful ones go to the human review queue; unsafe ones are
+rejected. Humans own the rules (glossary, thresholds) and the exceptions, not every example.
 """
 
 from __future__ import annotations
@@ -44,6 +46,9 @@ class Trio(BaseModel):
     tags: tuple[str, ...] = ()
     author: str
     created: date
+    status: Literal["approved", "probation"] = "approved"  # probation = approved automatically, on trial
+    source: str | None = None  # provenance of a curated trio (candidate, trace, judge score)
+    metrics: tuple[str, ...] = ()  # glossary metrics it relies on: re-check these trios when one changes
     sql: str = Field(min_length=1)
     report: str = Field(min_length=1)
 
@@ -71,6 +76,10 @@ _LiteralDumper.add_representer(
 )
 
 
+def dump_yaml(data: dict) -> str:
+    return yaml.dump(data, Dumper=_LiteralDumper, sort_keys=False, allow_unicode=True, width=110)
+
+
 def write_candidate(
     directory: Path,
     *,
@@ -82,33 +91,29 @@ def write_candidate(
     today: date,
     warnings: Sequence[str] = (),
 ) -> Path:
-    """Propose a trio from a well-rated answer: the last query becomes `sql`, others are listed below.
-
-    `warnings` (e.g. figures the grounding check could not verify) go in the header, for the reviewer.
+    """Propose a trio from a well-rated answer: the last query becomes `sql`, the others are kept as
+    `other_queries`. `warnings` (e.g. figures the grounding check could not verify) are kept for
+    curation, which then sends the candidate to human review instead of approving it.
     """
     directory.mkdir(parents=True, exist_ok=True)
-    trio = {
+    candidate = {
         "id": f"candidate-{trace_id}",
         "question": question,
-        "tags": [],
         "author": f"{user_id} (via /good)",
         "created": today,
+        "trace_id": trace_id,
+        "warnings": list(warnings),
         "sql": queries[-1].strip() + "\n",
+        "other_queries": [q.strip() + "\n" for q in queries[:-1]],
         "report": answer.strip() + "\n",
     }
     header = (
         f"# Candidate trio proposed by {user_id} on {today} (trace {trace_id}).\n"
-        "# Not used by the assistant until an analyst reviews it: check the SQL and definitions,\n"
-        "# generalise the question, add tags, rewrite `report` as method notes (no current numbers),\n"
-        "# then move this file to golden/trios/ (`retail-agent doctor` validates it).\n"
-    ) + "".join(f"# REVIEW WARNING: {warning}\n" for warning in warnings)
-    others = "".join(
-        "\n# Other query used in the answer:\n" + "".join(f"#   {line}\n" for line in q.strip().splitlines())
-        for q in queries[:-1]
+        "# Not used by the assistant. `retail-agent golden curate` checks, generalises and judges it:\n"
+        "# approved (on probation) into golden/trios/, sent to golden/review/, or rejected.\n"
     )
     path = directory / f"{today}-{trace_id}.yaml"
-    body = yaml.dump(trio, Dumper=_LiteralDumper, sort_keys=False, allow_unicode=True, width=110)
-    path.write_text(header + body + others, encoding="utf-8")
+    path.write_text(header + dump_yaml(candidate), encoding="utf-8")
     return path
 
 
@@ -220,6 +225,21 @@ class GoldenRetriever:
                 log.warning("golden retrieval: embeddings unavailable, using BM25 (%s)", error)
         scored = sorted(zip(self.trios, self._bm25.scores(question), strict=True), key=lambda p: -p[1])
         return Retrieval([(t, s) for t, s in scored[:k] if s > 0], "bm25", error)
+
+    def nearest(self, text: str, k: int = 3) -> list[tuple[Trio, float]]:
+        """Trios most similar to another trio's search text (document vs documents), for duplicate
+        detection. Embeddings only: BM25 scores are not comparable across texts. Raises if unavailable."""
+        if self.embedder is None:
+            raise RuntimeError("no embedding model configured")
+        if not self.trios:
+            return []
+        documents = self._document_vectors()
+        vector = _normalise(self.embedder.embed([text], task="document")[0])
+        scored = [
+            (t, sum(a * b for a, b in zip(vector, v, strict=True)))
+            for t, v in zip(self.trios, documents, strict=True)
+        ]
+        return sorted(scored, key=lambda p: -p[1])[:k]
 
     def _by_embedding(self, question: str, k: int) -> list[tuple[Trio, float]]:
         assert self.embedder is not None

@@ -130,6 +130,17 @@ def test_scope_values_are_escaped():
     sqlglot.parse_one(sql, dialect="bigquery")  # still valid SQL
 
 
+def test_ansi_quote_escaping_gets_a_hint_the_model_can_act_on():
+    with pytest.raises(SqlGuardError, match=r"quote inside a string is written with a backslash") as error:
+        guard_for("bob").check("SELECT * FROM products WHERE brand IN ('Arc''teryx')")
+    assert error.value.code == "parse_error"
+    for fixed in (
+        "SELECT * FROM products WHERE brand = 'Arc\\'teryx'",
+        'SELECT * FROM products WHERE brand = "Arc\'teryx"',
+    ):
+        guard_for("bob").check(fixed)  # both forms the hint suggests are accepted
+
+
 def test_unrestricted_user_has_no_row_filter():
     sql = guard_for("ceo").check("SELECT * FROM users").sql
     assert "WHERE" not in sql

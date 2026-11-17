@@ -61,7 +61,7 @@ def chat(
 
 
 def _log_to_file(settings: Settings) -> None:
-    """Keep the chat screen clean: library and agent logs go to logs/agent.log (phase 6: JSON)."""
+    """Keep the chat screen clean: library and agent logs go to logs/agent.log (events: logs/agent.jsonl)."""
     settings.logs_dir.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
         filename=settings.logs_dir / "agent.log",
@@ -189,6 +189,86 @@ def run_evals(
         f"\n{passed}/{len(run.results)} passed · report {report} · traces: --data-dir data/evals/{run.run_id}"
     )
     raise typer.Exit(0 if passed == len(run.results) else 1)
+
+
+golden_app = typer.Typer(
+    help="Golden trios: the analysts' examples the assistant learns from.", no_args_is_help=True
+)
+app.add_typer(golden_app, name="golden")
+
+
+@golden_app.command("curate")
+def golden_curate(
+    dry_run: Annotated[bool, typer.Option("--dry-run", help="Decide and show, but move no files.")] = False,
+    limit: Annotated[int | None, typer.Option(help="At most this many candidates (oldest first).")] = None,
+    judge: Annotated[
+        bool, typer.Option(help="Ask the judge model; without it nothing is auto-approved.")
+    ] = True,
+) -> None:
+    """Curate candidate trios from /good: approve (on probation), send to review, or reject.
+
+    Uses about 2 LLM calls per candidate (generalise + judge); unsafe candidates are rejected first,
+    for free. Decisions are appended to logs/curation.jsonl.
+    """
+    from rich.table import Table
+
+    from retail_agent.curation import curate, gemini_curators
+    from retail_agent.data.bq_client import BigQueryRunner
+    from retail_agent.golden import GeminiEmbedder
+    from retail_agent.policy import ConfigFileError, load_data_policy, load_user_directory
+
+    settings = _settings()
+    _log_to_file(settings)
+    if settings.gemini_api_key is None:
+        console.print("[red]✗ GEMINI_API_KEY is not set (.env). Run `retail-agent doctor`.[/]")
+        raise typer.Exit(1)
+    try:
+        policy, users = load_data_policy(settings.config_dir), load_user_directory(settings.config_dir)
+        generalise, judge_model = gemini_curators(settings)
+        decisions = curate(
+            settings,
+            policy=policy,
+            users=users,
+            runner=BigQueryRunner.from_settings(settings),
+            generalise=generalise,
+            judge=judge_model if judge else None,
+            embedder=GeminiEmbedder(settings.gemini_api_key.get_secret_value(), settings.embedding_model),
+            dry_run=dry_run,
+            limit=limit,
+        )
+    except (ConfigFileError, ValueError) as exc:
+        console.print(f"[red]✗ {escape(str(exc))}[/]")
+        raise typer.Exit(1) from None
+    if not decisions:
+        console.print(f"No candidates in {settings.golden_candidates_dir}.")
+        return
+    colour = {"approved": "green", "review": "yellow", "rejected": "red"}
+    table = Table(show_lines=True)
+    for column in ("candidate", "decision", "trio", "judge", "nearest trio", "reasons"):
+        table.add_column(column, overflow="fold")
+    for d in decisions:
+        table.add_row(
+            d.candidate,
+            f"[{colour[d.outcome]}]{d.outcome}[/]",
+            d.trio_id or "",
+            f"{d.score}/5" if d.score else "",
+            f"{d.nearest[0]} {d.nearest[1]}" if d.nearest else "",
+            escape("\n".join(d.reasons)),
+        )
+    console.print(table)
+    counts = {o: sum(d.outcome == o for d in decisions) for o in colour}
+    calls = sum(d.llm_calls for d in decisions)
+    where = "nothing moved (--dry-run)"
+    if not dry_run:
+        where = (
+            f"approved → {settings.golden_dir}, review → {settings.golden_review_dir}, "
+            f"rejected → {settings.golden_rejected_dir}"
+        )
+    console.print(
+        f"{counts['approved']} approved (on probation) · {counts['review']} to review · "
+        f"{counts['rejected']} rejected · {calls} LLM calls · {where}",
+        highlight=False,
+    )
 
 
 @app.command()

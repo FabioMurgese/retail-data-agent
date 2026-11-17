@@ -77,6 +77,13 @@ class GuardedQuery:
     limit_applied: bool  # True if the guard added or lowered the outer LIMIT
 
 
+# The model tends to write ANSI-style 'Levi''s', which BigQuery (and its parser here) rejects.
+_QUOTE_HINT = (
+    " In BigQuery a quote inside a string is written with a backslash ('Levi\\'s') or the string goes in"
+    " double quotes (\"Levi's\"); '' is not an escape."
+)
+
+
 class SqlGuard:
     """Rewrites SQL for one user. Build one per session: the scoped sources are precomputed."""
 
@@ -122,9 +129,10 @@ class SqlGuard:
         except ParseError as exc:
             first = exc.errors[0] if exc.errors else {}
             where = f" at line {first['line']}, column {first['col']}" if "line" in first else ""
+            description = first.get("description", "cannot parse the query")
+            hint = _QUOTE_HINT if "string literal" in description.lower() else ""
             raise SqlGuardError(
-                f"SQL syntax error: {first.get('description', 'cannot parse the query')}{where}.",
-                code="parse_error",
+                f"SQL syntax error: {description}{where}.{hint}", code="parse_error"
             ) from None
         except SqlglotError as exc:
             raise SqlGuardError(f"SQL syntax error: {exc}.", code="parse_error") from None

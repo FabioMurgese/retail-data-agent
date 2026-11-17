@@ -22,5 +22,7 @@ def settings(tmp_path) -> Settings:
         reports_dir=tmp_path / "reports",
         logs_dir=tmp_path / "logs",
         golden_candidates_dir=tmp_path / "candidates",
+        golden_review_dir=tmp_path / "review",
+        golden_rejected_dir=tmp_path / "rejected",
         bq_max_rows=100,
     )

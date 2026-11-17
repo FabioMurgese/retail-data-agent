@@ -128,7 +128,11 @@ def build_graph(
             "system_prompt": prompt,
             "retrieval": {
                 "method": retrieval.method,
-                "trios": [{"id": trio.id, "score": round(score, 3)} for trio, score in retrieval.trios],
+                "trios": [
+                    {"id": trio.id, "score": round(score, 3)}
+                    | ({"probation": True} if trio.status == "probation" else {})
+                    for trio, score in retrieval.trios
+                ],  # probation trios are tracked: their use and outcomes decide promotion
                 "error": retrieval.error,
                 "persona_error": session.persona.last_error,
             },

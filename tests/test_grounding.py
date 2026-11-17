@@ -1,4 +1,5 @@
-"""Grounding check and empty-result detection (both added after a live hallucination, see PLAN.md)."""
+"""Grounding check and empty-result detection (both added after a live hallucination: the model gave a
+revenue figure for a filter value that matched nothing, without querying it)."""
 
 from __future__ import annotations
 

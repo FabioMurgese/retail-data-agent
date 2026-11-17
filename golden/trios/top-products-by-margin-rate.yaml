@@ -1,0 +1,47 @@
+# Approved automatically by `retail-agent golden curate` on 2026-11-16: judge 5/5, nearest trio top-categories-net-revenue-quarter-over-quarter (0.876).
+# On probation: analysts audit a sample of automatic approvals; set
+# `status: approved` once confirmed.
+id: top-products-by-margin-rate
+question: Which products had the best margin rate this year?
+tags:
+- products
+- margin
+- profitability
+- top-performers
+- categories
+author: automatic curation
+created: 2026-11-16
+status: probation
+source: candidate-ec93520fbe6e (carol (via /good), trace ec93520fbe6e)
+metrics:
+- margin
+- net_revenue
+- units
+sql: |
+  SELECT
+    p.id AS product_id,
+    p.name,
+    p.brand,
+    p.category,
+    ROUND(SUM(oi.sale_price - p.cost), 2) AS total_margin,
+    ROUND(SUM(oi.sale_price), 2) AS net_revenue,
+    ROUND(SAFE_DIVIDE(SUM(oi.sale_price - p.cost), SUM(oi.sale_price)) * 100, 1) AS margin_rate_pct,
+    COUNT(oi.id) AS units_sold
+  FROM order_items AS oi
+  JOIN products AS p
+    ON p.id = oi.product_id
+  WHERE
+    NOT oi.status IN ('Cancelled', 'Returned')
+    AND DATE(oi.created_at) >= DATE_TRUNC(CURRENT_DATE, YEAR)
+  GROUP BY
+    product_id,
+    p.name,
+    p.brand,
+    p.category
+  HAVING
+    units_sold >= 10
+  ORDER BY
+    margin_rate_pct DESC
+  LIMIT 5
+report: |
+  Margin rate is calculated as total margin divided by net revenue, using items that have not been cancelled or returned. A minimum unit threshold is applied to avoid statistical distortion from low-volume items. Review the results to identify high-margin product categories and individual top-performing items. Follow-up queries can investigate these products by sales volume, category-level profitability, or discount frequency.

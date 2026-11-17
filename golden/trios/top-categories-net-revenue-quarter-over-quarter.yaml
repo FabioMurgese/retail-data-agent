@@ -1,0 +1,60 @@
+# Approved automatically by `retail-agent golden curate` on 2026-11-16: judge 5/5, nearest trio monthly-revenue-trend (0.833).
+# On probation: analysts audit a sample of automatic approvals; set
+# `status: approved` once confirmed.
+id: top-categories-net-revenue-quarter-over-quarter
+question: What were the top categories by net revenue in the most recent completed quarter, and how did they change
+  compared to the quarter before?
+tags:
+- categories
+- net-revenue
+- quarterly-comparison
+- growth
+- sales-performance
+author: automatic curation
+created: 2026-11-15
+status: probation
+source: candidate-5fc68943610b (bob (via /good), trace 5fc68943610b)
+metrics:
+- net_revenue
+sql: |
+  WITH current_quarter AS (
+    SELECT
+      p.category,
+      SUM(oi.sale_price) AS net_revenue
+    FROM order_items AS oi
+    JOIN products AS p
+      ON p.id = oi.product_id
+    WHERE
+      NOT oi.status IN ('Cancelled', 'Returned')
+      AND DATE(oi.created_at) >= DATE_SUB(DATE_TRUNC(CURRENT_DATE, QUARTER), INTERVAL '3' MONTH)
+      AND DATE(oi.created_at) < DATE_TRUNC(CURRENT_DATE, QUARTER)
+    GROUP BY
+      p.category
+  ), previous_quarter AS (
+    SELECT
+      p.category,
+      SUM(oi.sale_price) AS net_revenue
+    FROM order_items AS oi
+    JOIN products AS p
+      ON p.id = oi.product_id
+    WHERE
+      NOT oi.status IN ('Cancelled', 'Returned')
+      AND DATE(oi.created_at) >= DATE_SUB(DATE_TRUNC(CURRENT_DATE, QUARTER), INTERVAL '6' MONTH)
+      AND DATE(oi.created_at) < DATE_SUB(DATE_TRUNC(CURRENT_DATE, QUARTER), INTERVAL '3' MONTH)
+    GROUP BY
+      p.category
+  )
+  SELECT
+    cq.category,
+    cq.net_revenue AS current_quarter_net_revenue,
+    pq.net_revenue AS previous_quarter_net_revenue,
+    ROUND(cq.net_revenue - pq.net_revenue, 2) AS revenue_change,
+    ROUND(SAFE_DIVIDE(cq.net_revenue - pq.net_revenue, pq.net_revenue) * 100, 1) AS percentage_change
+  FROM current_quarter AS cq
+  LEFT JOIN previous_quarter AS pq
+    ON cq.category = pq.category
+  ORDER BY
+    current_quarter_net_revenue DESC
+  LIMIT 3
+report: |
+  This query compares net revenue across product categories between the last completed quarter and the quarter preceding it, filtering out cancelled and returned items. Results show the top performing categories ranked by the most recent quarter's revenue alongside absolute and percentage changes. A common pitfall is including incomplete data from the current ongoing quarter, which is avoided by anchoring dates to completed quarters. Follow-up analyses could investigate whether growth was driven by higher order volumes, larger average order values, or changes in average selling prices.

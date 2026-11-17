@@ -1,0 +1,82 @@
+# Needs an analyst (curation on 2026-11-16). Reasons:
+#   - metrics not in the glossary (an analyst should define them): delivered_orders, avg_delivery_days
+#   - judge score 3/5: The method notes suggest breaking down delivery duration by carrier, but carrier data is not available in the dataset.
+# To approve: fix what the reasons point at, set `status: approved` and move this file to
+# golden/trios/ (`retail-agent doctor` validates it). To reject: delete it.
+id: average-delivery-days-by-month
+question: How many days does it take on average for orders to be delivered, month by month this year?
+tags:
+- delivery-time
+- fulfillment
+- orders
+- logistics
+- shipping
+- performance
+author: automatic curation
+created: 2026-11-16
+status: approved
+source: candidate-f5ec1bb1ffe5 (dan (via /good), trace f5ec1bb1ffe5)
+metrics:
+- delivered_orders
+- avg_delivery_days
+sql: |
+  SELECT
+    DATE_TRUNC(DATE(o.created_at), MONTH) AS month,
+    COUNT(o.order_id) AS delivered_orders,
+    ROUND(AVG(TIMESTAMP_DIFF(o.delivered_at, o.created_at, HOUR)) / 24.0, 1) AS avg_delivery_days
+  FROM orders AS o
+  WHERE
+    o.status = 'Complete'
+    AND NOT o.delivered_at IS NULL
+    AND DATE(o.created_at) >= DATE_TRUNC(CURRENT_DATE, YEAR)
+  GROUP BY
+    month
+  ORDER BY
+    month
+report: |
+  Delivery time is measured in days from order creation to delivery timestamp for completed orders. This query evaluates fulfillment performance trends over the current year on a monthly basis. Watch out for low-volume months where a few outlier shipments can skew the average. Follow-up queries can break down delivery duration by shipping destination or carrier if available.
+
+# Original candidate:
+#   # Candidate trio proposed by dan on 2026-11-16 (trace f5ec1bb1ffe5).
+#   # Not used by the assistant. `retail-agent golden curate` checks, generalises and judges it:
+#   # approved (on probation) into golden/trios/, sent to golden/review/, or rejected.
+#   id: candidate-f5ec1bb1ffe5
+#   question: How many days does it take on average for my orders to be delivered, month by month this year?
+#   author: dan (via /good)
+#   created: 2026-11-16
+#   trace_id: f5ec1bb1ffe5
+#   warnings: []
+#   sql: |
+#     SELECT
+#       DATE_TRUNC(DATE(o.created_at), MONTH) AS month,
+#       COUNT(o.order_id) AS delivered_orders,
+#       ROUND(AVG(TIMESTAMP_DIFF(o.delivered_at, o.created_at, HOUR)) / 24.0, 1) AS avg_delivery_days
+#     FROM orders AS o
+#     WHERE o.status = 'Complete'
+#       AND o.delivered_at IS NOT NULL
+#       AND DATE(o.created_at) >= DATE_TRUNC(CURRENT_DATE(), YEAR)
+#     GROUP BY month
+#     ORDER BY month
+#   other_queries: []
+#   report: |
+#     On average, it takes between 3.3 and 5.3 days for your completed orders to be delivered this year.
+#   
+#     Here is the month-by-month breakdown for orders with a `Complete` status from January 1, 2026, through yesterday (November 15, 2026):
+#   
+#     | Month | Delivered Orders | Average Delivery Time (Days) |
+#     | :--- | ---: | ---: |
+#     | January 2026 | 16 | 4.5 |
+#     | February 2026 | 9 | 3.8 |
+#     | March 2026 | 15 | 3.6 |
+#     | April 2026 | 23 | 3.5 |
+#     | May 2026 | 11 | 5.0 |
+#     | June 2026 | 8 | 5.3 |
+#     | July 2026 | 20 | 3.3 |
+#     | August 2026 | 29 | 4.2 |
+#     | September 2026 | 30 | 4.4 |
+#     | October 2026 | 36 | 4.2 |
+#     | November 2026 (to date) | 40 | 3.7 |
+#   
+#     *Note: Delivery time is calculated as the difference between order creation and delivery timestamps for orders marked `Complete`. November includes data up to yesterday.*
+#   
+#     Would you like to analyze delivery times broken down by shipping destination state?

@@ -11,14 +11,18 @@ import asyncio
 import threading
 import time
 from collections import deque
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from typing import TypeVar
 
 from langchain_core.rate_limiters import BaseRateLimiter
 from langchain_core.tools import BaseTool
 from langchain_google_genai import ChatGoogleGenerativeAI
+from pydantic import BaseModel
 
 from retail_agent.config import Settings
 from retail_agent.resilience import CircuitBreaker, FallbackChatModel, ModelSlot
+
+SchemaT = TypeVar("SchemaT", bound=BaseModel)
 
 
 class SlidingWindowRateLimiter(BaseRateLimiter):
@@ -102,3 +106,22 @@ def build_chat_model(settings: Settings, tools: Sequence[BaseTool]) -> FallbackC
         )
 
     return FallbackChatModel([slot(model) for model in settings.model_chain])
+
+
+def structured_model(
+    settings: Settings, models: Sequence[str], schema: type[SchemaT]
+) -> Callable[[str], SchemaT]:
+    """Models that answer with an instance of `schema`, behind the same fallback chain, limiters and
+    breakers as the agent (used by the eval judge and by golden-trio curation)."""
+    chain = FallbackChatModel(
+        [
+            ModelSlot(
+                name=model,
+                model=gemini(settings, model).with_structured_output(schema),
+                limiter=limiter_for(model, settings.rpm_for(model)),
+                breaker=breaker_for(model, settings.breaker_cooldown_s),
+            )
+            for model in models
+        ]
+    )
+    return lambda prompt: chain.invoke(prompt)

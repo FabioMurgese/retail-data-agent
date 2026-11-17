@@ -261,7 +261,7 @@ class ChatApp:
         )
         turn = next(iter(events.events(kind="turn", trace_id=trace_id)), None)
         if rating == "good" and turn and (path := self._propose_trio(turn)):
-            message += f" This answer was proposed to the analysts as an example ({path.name})."
+            message += f" Proposed as an example for the assistant ({path.name}); it is checked before use."
         self.console.print(f"[dim]{escape(message)}[/]")
 
     def _propose_trio(self, turn: dict[str, Any]) -> Path | None:

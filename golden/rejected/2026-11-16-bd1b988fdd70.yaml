@@ -1,0 +1,49 @@
+# Rejected by curation on 2026-11-16. Reasons:
+#   - duplicate of return-rate-by-category (similarity 0.96)
+# Candidate trio proposed by dan on 2026-11-16 (trace bd1b988fdd70).
+# Not used by the assistant. `retail-agent golden curate` checks, generalises and judges it:
+# approved (on probation) into golden/trios/, sent to golden/review/, or rejected.
+id: candidate-bd1b988fdd70
+question: Which product categories have the highest return rate for my brand?
+author: dan (via /good)
+created: 2026-11-16
+trace_id: bd1b988fdd70
+warnings: []
+sql: |
+  SELECT
+    p.category,
+    COUNT(*) AS items_delivered,
+    COUNTIF(oi.status = 'Returned') AS items_returned,
+    ROUND(COUNTIF(oi.status = 'Returned') / COUNT(*), 4) AS return_rate
+  FROM order_items AS oi
+  JOIN products AS p ON p.id = oi.product_id
+  WHERE p.brand = 'Carhartt'
+    AND oi.status IN ('Complete', 'Returned')
+  GROUP BY p.category
+  ORDER BY return_rate DESC
+other_queries:
+- |
+  SELECT DISTINCT brand FROM products WHERE brand LIKE '%Carhartt%'
+- |
+  SELECT
+    p.category,
+    COUNT(*) AS items_delivered,
+    COUNTIF(oi.status = 'Returned') AS items_returned,
+    ROUND(COUNTIF(oi.status = 'Returned') / COUNT(*), 4) AS return_rate
+  FROM order_items AS oi
+  JOIN products AS p ON p.id = oi.product_id
+  WHERE p.brand = 'Carhartt'
+    AND oi.status IN ('Complete', 'Returned')
+  GROUP BY p.category
+  HAVING items_delivered >= 50
+  ORDER BY return_rate DESC
+  LIMIT 10
+report: "Accessories and Active wear have the highest return rates among Carhartt's product categories with meaningful\
+  \ sales volume, at 34.0% and 31.7% respectively. \n\nHere is the return rate for all Carhartt categories that\
+  \ have reached customers (status *Complete* or *Returned*), ordered by return rate:\n\n| Category | Items Delivered\
+  \ | Items Returned | Return Rate |\n| :--- | :--- | :--- | :--- |\n| Accessories | 100 | 34 | 34.0% |\n| Active\
+  \ | 79 | 25 | 31.7% |\n| Jeans | 81 | 25 | 30.9% |\n| Tops & Tees | 149 | 42 | 28.2% |\n| Shorts | 50 | 14 | 28.0%\
+  \ |\n| Outerwear & Coats | 261 | 66 | 25.3% |\n\n*(Note: Categories with fewer than 50 delivered items—such as\
+  \ Pants & Capris at 53.9% on 13 items, Fashion Hoodies & Sweatshirts at 40.9% on 22 items, and Socks at 40.0%\
+  \ on 30 items—have been excluded from the main ranking due to small sample sizes.)*\n\nWould you like to examine\
+  \ the return rates for Accessories or Active wear broken down by department or customer demographics?\n"

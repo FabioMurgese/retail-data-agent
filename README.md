@@ -16,7 +16,7 @@ It is built on LangGraph. Deterministic safeguards surround the model:
 | High-level design with architecture diagrams (Mermaid) | [docs/HLD.md](docs/HLD.md) |
 | Detailed technical explanation: choices, data flow, the 8 requirements, error handling, QA, assumptions | [docs/TECHNICAL.md](docs/TECHNICAL.md) |
 | Working prototype (CLI) | [`src/retail_agent/`](src/retail_agent), setup below |
-| Tests (308, offline) and live evaluation suite (19 cases, last run 19/19) | [`tests/`](tests), [`evals/`](evals/README.md) |
+| Tests (348, offline) and live evaluation suite (20 cases, latest run 19/20) | [`tests/`](tests), [`evals/`](evals/README.md) |
 
 ## What the prototype does
 
@@ -44,7 +44,10 @@ It is built on LangGraph. Deterministic safeguards surround the model:
   Metrics and trace views are available in the chat and from the command line.
 - **Learning and persona.**
   - Users can ask the assistant to remember preferences, such as tables or a short format.
-  - `/good` turns an answer into a *candidate* trio for analyst review.
+  - `/good` turns an answer into a *candidate* golden trio. `retail-agent golden curate` checks,
+    generalises and judges candidates automatically: safe, new, well-judged ones join the trios on
+    probation; doubtful ones go to a small review queue; unsafe ones are rejected. Analysts own the
+    metric glossary and the exceptions, not every example.
   - The tone and the report template live in [`config/persona.yaml`](config/persona.yaml), which is
     re-read on every message, so non-developers can change them without a restart.
 
@@ -239,7 +242,7 @@ In the chat:
 |---|---|
 | `/reports`, `/report <id>` | list your saved reports, show one |
 | `/prefs`, `/prefs clear` | show or clear your remembered preferences |
-| `/good [comment]`, `/bad [comment]` | rate the last answer; `/good` proposes it as a candidate golden trio |
+| `/good [comment]`, `/bad [comment]` | rate the last answer; `/good` proposes it as a candidate golden trio (see `golden curate`) |
 | `/trace [id] [full]`, `/traces` | deep dive into your last turn, or any of yours: timeline, SQL, results, messages |
 | `/stats` | your usage metrics |
 | `/new`, `/whoami`, `/help`, `/exit` | new conversation, identity and scope, help, quit |
@@ -251,15 +254,19 @@ retail-agent traces [--user bob] [--limit 20]      # recent turns
 retail-agent trace <id> [--full]                   # one turn: model SQL vs guarded SQL, results, every message
 retail-agent stats [--user bob] [--since 24h]      # outcomes, latency, LLM/SQL behaviour, quality, cost
 retail-agent eval [-c case] [--category safety]    # live evaluation suite (uses real quota, ~50 LLM calls)
+retail-agent golden curate [--dry-run]             # curate candidate trios from /good (~2 LLM calls each)
 ```
+
+`golden curate` prints one row per candidate: the decision (approved on probation, review, rejected),
+the new trio's id, the judge's score, the most similar existing trio, and the reasons.
 
 Logs: `logs/agent.jsonl` holds one JSON event per line; `logs/agent.log` holds library logs.
 
 ## Tests and evaluation
 
 ```bash
-pip install pytest && python -m pytest -q          # 308 offline tests, ~3 s, no credentials needed
-retail-agent eval                                  # 19 live cases against Gemini and BigQuery
+pip install pytest && python -m pytest -q          # 348 offline tests, ~3 s, no credentials needed
+retail-agent eval                                  # 20 live cases against Gemini and BigQuery
 ```
 
 The offline tests use a scripted model and a fake BigQuery. The live suite checks behaviour in code:
@@ -276,7 +283,8 @@ See [evals/README.md](evals/README.md) for how each case is checked and how the 
 | [`config/persona.yaml`](config/persona.yaml) | business (e.g. the CEO's office) | tone, style rules, report template; applied from the next message |
 | [`config/users.yaml`](config/users.yaml) | data stewards | which brands each manager can analyse |
 | [`config/pii_policy.yaml`](config/pii_policy.yaml) | data stewards | the column allowlist and the PII columns |
-| [`golden/trios/`](golden/trios) | analysts | question → SQL → method notes, used as examples ([candidates](golden/candidates/README.md) await review) |
+| [`golden/glossary.yaml`](golden/glossary.yaml) | analysts | the agreed metric definitions every new golden example is checked against |
+| [`golden/trios/`](golden/trios) | analysts, plus automatic curation | question → SQL → method notes, used as examples ([how candidates become trios](golden/candidates/README.md)) |
 
 ## Repository layout
 
@@ -289,7 +297,8 @@ src/retail_agent/
   resilience.py   circuit breakers, Gemini fallback chain
   observability.py, views.py   events, metrics, trace views
   storage.py      SQLite: reports (+ full-text), audit log, preferences, events
-  golden.py, persona.py, policy.py, config.py, evals.py, doctor.py, chat.py, cli.py
+  golden.py, curation.py   golden trios: retrieval; automatic curation of candidates
+  persona.py, policy.py, config.py, evals.py, doctor.py, chat.py, cli.py
 config/  golden/  evals/  tests/  docs/
 ```
 
@@ -308,11 +317,8 @@ config/  golden/  evals/  tests/  docs/
 
 I built this with **Claude Code** (Anthropic) as a pair programmer; the assignment sets no limit on the
 use of AI. I discussed and approved the design choices, and the code was written, tested and run live
-in that loop. I kept the working files in the repository on purpose:
-- [`assignment.md`](assignment.md): the brief;
-- [`PLAN.md`](PLAN.md): the plan and a log of every decision, live test, failure found and fix, phase
-  by phase;
-- [`CLAUDE.md`](CLAUDE.md): the project instructions for the assistant.
+in that loop. The brief is in [`assignment.md`](assignment.md); the results of every live evaluation
+run are in [`evals/results/`](evals/results).
 
 My own experience with the framework is described in
 [TECHNICAL.md §2.3](docs/TECHNICAL.md#23-framework-langgraph).

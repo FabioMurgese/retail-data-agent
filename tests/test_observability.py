@@ -163,7 +163,7 @@ def test_good_feedback_proposes_a_candidate_trio_for_review(settings):
     assert trio["sql"] == "SELECT COUNT(*) AS n FROM orders\n" and trio["report"] == "You have 3 orders.\n"
     feedback = app.session.events.events(kind="feedback")
     assert feedback[0]["status"] == "good" and feedback[0]["data"]["comment"] == "spot on"
-    assert "proposed to the analysts" in out.getvalue()
+    assert "Proposed as an example" in out.getvalue()
 
 
 def test_bad_feedback_is_recorded_without_a_candidate(settings):
@@ -229,5 +229,6 @@ def test_candidate_trio_keeps_system_notes_out_of_the_report_and_warns_the_revie
 
     [candidate] = list(settings.golden_candidates_dir.glob("*.yaml"))
     content = candidate.read_text()
-    assert "# REVIEW WARNING: the automatic check could not verify: $4,068,574.68" in content
-    assert yaml.safe_load(content)["report"] == "You have 3 orders worth $4,068,574.68.\n"  # no caveat inside
+    data = yaml.safe_load(content)
+    assert data["warnings"] == ["the automatic check could not verify: $4,068,574.68"]  # curation reads it
+    assert data["report"] == "You have 3 orders worth $4,068,574.68.\n"  # no caveat inside

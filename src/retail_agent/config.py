@@ -58,6 +58,12 @@ class Settings(BaseSettings):
         default_factory=lambda: ["gemini-3.8-flash", "gemini-3.6-flash", "gemini-3-flash"]
     )
 
+    # --- Golden-trio curation (`retail-agent golden curate`): thresholds calibrated on paraphrases ---
+    curation_duplicate_similarity: float = Field(0.945, gt=0, le=1)  # >= this: same question, rejected
+    curation_variant_similarity: float = Field(0.90, gt=0, le=1)  # >= this: a variant, human review
+    curation_min_score: int = Field(4, ge=1, le=5)  # judge score needed for automatic approval
+    curation_max_per_author: int = Field(3, ge=1)  # automatic approvals per author and run (anti-poisoning)
+
     # --- Cost estimates in /stats (USD). The free tier costs nothing: set list prices to estimate. ---
     llm_price_input_per_mtok: float = Field(0.0, ge=0)
     llm_price_output_per_mtok: float = Field(0.0, ge=0)
@@ -70,7 +76,10 @@ class Settings(BaseSettings):
     reports_dir: Path = Path("reports")  # Markdown export of saved reports
     cache_dir: Path = Path(".cache")
     logs_dir: Path = Path("logs")
-    golden_candidates_dir: Path = Path("golden/candidates")  # trios proposed via /good, for analyst review
+    golden_candidates_dir: Path = Path("golden/candidates")  # trios proposed via /good, awaiting curation
+    golden_review_dir: Path = Path("golden/review")  # curation's human review queue
+    golden_rejected_dir: Path = Path("golden/rejected")  # rejected candidates, with the reasons
+    glossary_path: Path = Path("golden/glossary.yaml")  # metric definitions owned by the analysts
 
     @field_validator("fallback_models", "eval_judge_models", mode="before")
     @classmethod

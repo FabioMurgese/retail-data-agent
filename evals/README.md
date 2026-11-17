@@ -48,6 +48,8 @@ and failed checks) and `results/<run>.json` (everything, for diffs).
 | `20261115-160439`, `-160450` | the two changed cases: pass | |
 | `20261115-160510` | **19/19** | All judged answers 5/5; one more live self-correction (empty-result-recovery). 46 LLM calls, 26 queries, 388 MB billed. |
 | `20261116-105121` | the 6 scope cases: **6/6** | Rerun after access became brand-only (below). The quarterly report scored 5/5 with 4 LLM calls for 5 queries: the model ran some queries in parallel. |
+| `20261116-112703` | the new case and *scope-out-of-reach*: 2/2 | After the Arc'teryx fix (the model had silently dropped a brand whose name contains a quote). |
+| `20261116-114633` | 19/20 | Full suite after brand-only access, conversation-wide grounding and the new case *brand-breakdown-scoped* (all five of bob's brands, Arc'teryx included → pass). *churn-spike* 3/5: drivers queried by channel and country but not presented with numbers; 3 of the 5 runs since the prompt rules passed. 48 LLM calls (2.7 per answered question), 27 queries, 500 MB billed. |
 
 On 2026-11-16 the demo scopes changed: OpsFleet confirmed that access is by brand only, so alice, bob
 and dan became brand managers. The runs before `20261116-105121` used the previous department and

@@ -263,21 +263,9 @@ def judge_answer(
 
 def gemini_judge(settings: Settings) -> Callable[[str], Verdict]:
     """The judge models behind the same fallback chain as the agent (shared quotas and breakers)."""
-    from retail_agent.agent.llm import breaker_for, gemini, limiter_for
-    from retail_agent.resilience import FallbackChatModel, ModelSlot
+    from retail_agent.agent.llm import structured_model
 
-    chain = FallbackChatModel(
-        [
-            ModelSlot(
-                name=model,
-                model=gemini(settings, model).with_structured_output(Verdict),
-                limiter=limiter_for(model, settings.rpm_for(model)),
-                breaker=breaker_for(model, settings.breaker_cooldown_s),
-            )
-            for model in settings.eval_judge_models
-        ]
-    )
-    return lambda prompt: chain.invoke(prompt)
+    return structured_model(settings, settings.eval_judge_models, Verdict)
 
 
 # --- runner -----------------------------------------------------------------------------------------

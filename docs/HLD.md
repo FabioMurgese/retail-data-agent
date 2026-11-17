@@ -93,10 +93,12 @@ flowchart TB
     subgraph sg_gold["Golden bucket and learning loop"]
         direction LR
         ps[["Pub/Sub<br/>feedback and turn events"]] --> miners["Cloud Run jobs<br/>candidate trio miner,<br/>preference miner"]
-        miners --> queue["Review queue"]
-        analyst(["Analyst"]) -->|"review, approve,<br/>or author trios"| queue
-        queue --> gcs[("Cloud Storage<br/>golden bucket, versioned")]
-        gcs -->|"object finalized"| indexer["Trio indexer job<br/>guard check for every scope,<br/>dry-run, dedup, embeddings"]
+        miners --> curate["Curation job<br/>gates, generalise, dedup, judge"]
+        curate -->|"approved, on probation"| gcs[("Cloud Storage<br/>golden bucket, versioned")]
+        curate -->|"exceptions only"| queue["Review queue"]
+        analyst(["Analyst"]) -->|"owns the glossary,<br/>settles exceptions,<br/>audits a sample"| queue
+        queue --> gcs
+        gcs -->|"object finalized"| indexer["Trio indexer job<br/>embeddings"]
         indexer --> pg[("Cloud SQL<br/>trio index, pgvector")]
     end
 
@@ -273,24 +275,50 @@ flowchart LR
         miner --> suggest["Suggested preference,<br/>confirmed by the user in chat"] --> prefs
         prefs --> prompt["System prompt, every turn"]
     end
-    subgraph sg_system["System level: golden bucket and evals"]
-        signals["Positive feedback, traces,<br/>eval failures, negative feedback"] --> cands["Candidate trios"]
-        authored["Trios written by analysts"] --> review
-        cands --> review["Analyst review: check SQL and definitions,<br/>generalise, tag, write method notes"]
-        review --> bucket[("Golden bucket, versioned")]
-        bucket --> indexer["Indexer: SQL guard check for every scope,<br/>BigQuery dry-run, dedup, embeddings"]
-        indexer --> index[("Trio index")]
-        index --> retrieve["Top-3 retrieval at question time"]
-        signals --> regress["New regression cases"] --> gate["Eval gate for prompt,<br/>model and policy changes"]
+    subgraph sg_system["System level: golden bucket, curated automatically"]
+        signals["Positive feedback,<br/>well-rated sessions"] --> cands["Candidate trios"]
+        cands --> gates["Gates, free: SQL guard for every user,<br/>no single customers, dry-run,<br/>no personal data or injected instructions"]
+        gates --> gen["Generalise: question, tags,<br/>SQL, method notes, metrics used"]
+        gen --> dedup["Duplicates: embedding similarity"]
+        dedup --> judge["Judge, a stronger model:<br/>glossary, schema, correctness"]
+        judge -->|"safe, new, at least 4/5"| probation[("Trios on probation")]
+        judge -->|"doubt"| queue["Review queue"]
+        gates -->|"unsafe"| rejected["Rejected"]
+        dedup -->|"duplicate"| rejected
+        probation --> retrieve["Top-3 retrieval at question time"]
+        retrieve --> monitor["Outcomes of turns that used it"]
+        monitor -->|"good"| promoted[("Trios, approved")]
+        monitor -->|"worse"| queue
+        analysts(["Analysts"]) -->|"glossary, thresholds"| judge
+        analysts -->|"exceptions, sample audit"| queue
     end
 ```
 
-Nothing learned from user traffic changes the agent's behaviour without a human in between:
-- users confirm their own preferences;
-- analysts approve trios;
-- prompt and model changes must pass the eval suite.
+**Users confirm their own preferences.** Nothing about a user's answers changes silently.
 
-This prevents a single bad interaction, or a malicious user, from poisoning the system.
+**Golden examples are curated automatically, and people own the rules, not each example.** As
+OpsFleet pointed out, an approval flow in which an analyst reviews every candidate does not scale. In
+this design analysts maintain:
+- a short **metric glossary**: net revenue, return rate, churn…;
+- the thresholds;
+- a review queue that receives only the **exceptions**: a metric the glossary does not define, a
+  variant of an existing trio, a mid score, a model outage;
+- a **sample audit** of automatic approvals, which tells how precise the judge is and when to tighten
+  the thresholds.
+
+Their workload then grows with the number of exceptions and the size of the sample, not with the
+volume of candidates.
+
+**An approved trio starts on probation.** It is retrieved like any other, and the outcomes of the turns
+that used it are tracked: feedback, grounding revisions, SQL errors, rephrased questions. It is then
+promoted, or sent back to review, automatically.
+
+**Defences against poisoning**, needed because approval is automatic:
+- trios are built only from SQL the guard accepts for *every* user;
+- the text is rewritten by the generaliser and screened for injected instructions;
+- each user has a cap on automatic approvals;
+- in production, automatic approval also requires similar questions endorsed by several users;
+- prompt, model and policy changes still pass the eval suite before release.
 
 ---
 
@@ -305,7 +333,8 @@ This prevents a single bad interaction, or a malicious user, from poisoning the 
 | Audit log | Cloud SQL, append-only, exported to BigQuery | SQLite `audit_log` | report ids and user ids only | Records each delete request, confirmation, cancellation and abort, plus each report saved. Kept at least 1 year. |
 | User preferences | Cloud SQL | SQLite `user_preferences` | no | Kept until the user clears them (`/prefs clear`). Shown in the prompt every turn. |
 | Events and traces | Cloud Logging → BigQuery sink; Langfuse | SQLite `events` + `logs/agent.jsonl` | masked before writing | Detailed traces kept 30 days; aggregated metrics kept longer. |
-| Golden trios | Cloud Storage (versioned) + pgvector index | `golden/trios/*.yaml` + embedding cache in `.cache/` | none: method notes, no customer data, no current numbers | Validated against the SQL guard for every scope before indexing. |
+| Golden trios | Cloud Storage (versioned) + pgvector index | `golden/trios/*.yaml` + embedding cache in `.cache/` | none: method notes, no customer data, no current numbers | Curated automatically (approved trios start on probation); validated against the SQL guard for every scope before indexing. |
+| Curation queue: candidates, review, rejected | Cloud Storage + review UI | `golden/candidates/`, `golden/review/`, `golden/rejected/` + `logs/curation.jsonl` | candidates and rejected files keep the original (masked) answer, which can describe pseudonymous customers | Candidates leave the queue in one run. Rejected files: short retention, restricted access. |
 | Persona and policies | Firestore (versioned) + admin console | `config/*.yaml`, re-read every turn | no | Validated on save; the last valid version is kept if an edit is invalid. Every change is audited. |
 | Secrets | Secret Manager; IAM for Google APIs | `.env` (git-ignored) | — | Never logged. Vertex AI and BigQuery use service accounts, not keys. |
 
@@ -382,10 +411,10 @@ case; together they make a single failure harmless.
 | Checkpoints | `InMemorySaver` | `PostgresSaver` on Cloud SQL |
 | Reports, audit, preferences, events | SQLite (`data/agent.db`) + `logs/agent.jsonl` | Cloud SQL + Cloud Logging → BigQuery + Langfuse |
 | Golden bucket | `golden/trios/*.yaml`, Gemini embeddings cached on disk, BM25 fallback | Cloud Storage + indexer job + pgvector, hybrid retrieval |
-| Candidate trios | `/good` writes `golden/candidates/*.yaml` | Pub/Sub → candidate miner → review queue |
+| Candidate trios | `/good` writes `golden/candidates/*.yaml`; `retail-agent golden curate` approves (on probation), queues for review or rejects | Pub/Sub → candidate miner → curation job → trios on probation, review queue for exceptions |
 | Persona, scopes, PII policy | `config/*.yaml`, re-read every turn | Firestore + admin console, versioned |
 | SQL safety | SQL guard + runner checks | the same, plus authorized views, policy tags, row access policies |
 | Output safety | regex/column masker | the same, plus Sensitive Data Protection and Model Armor |
 | Rate limits, breakers | in process, per model | shared in Memorystore |
 | Ops views | `retail-agent traces / trace / stats` | Cloud Monitoring dashboards and alerts, Langfuse, BigQuery |
-| Evals | `retail-agent eval` (19 live cases) | the same suite as the CI release gate, plus sampled online judging |
+| Evals | `retail-agent eval` (20 live cases) | the same suite as the CI release gate, plus sampled online judging |

@@ -56,6 +56,7 @@ def test_system_prompt_has_scope_schema_examples_and_persona(settings):
     prompt = system.content
     assert "products of the brands 7 For All Mankind, True Religion, Joe's Jeans, AG Adriano" in prompt
     assert 'Present results as "for your brands"' in prompt
+    assert "do not add filters for this scope yourself" in prompt
     assert "Today is 2026-11-15" in prompt
     assert "### users: One row per customer." in prompt
     assert not [

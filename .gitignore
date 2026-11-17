@@ -23,8 +23,17 @@ build/
 .DS_Store
 .idea/
 
-# candidate trios proposed at runtime via /good: reviewed by an analyst, then moved to golden/trios/.
-# Only the README and one real example are tracked.
+# local working notes (plan, progress log, assistant instructions): not published
+/PLAN.md
+/CLAUDE.md
+
+# golden-trio curation at runtime: candidates from /good, the human review queue, rejected candidates.
+# Only the READMEs and one real example per outcome folder are tracked.
 /golden/candidates/*
 !/golden/candidates/README.md
-!/golden/candidates/2026-11-15-5fc68943610b.yaml
+/golden/review/*
+!/golden/review/README.md
+!/golden/review/2026-11-16-f5ec1bb1ffe5.yaml
+/golden/rejected/*
+!/golden/rejected/README.md
+!/golden/rejected/2026-11-16-bd1b988fdd70.yaml

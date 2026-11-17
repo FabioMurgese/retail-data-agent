@@ -16,6 +16,7 @@ from pathlib import Path
 from sqlglot import exp
 
 from retail_agent.config import Settings
+from retail_agent.curation import load_glossary
 from retail_agent.data.bq_client import BigQueryError, BigQueryRunner
 from retail_agent.golden import load_trios
 from retail_agent.persona import PERSONA_FILE, PersonaStore
@@ -104,7 +105,16 @@ def _content_checks(
     if broken:
         yield Check("Golden trios", Status.FAIL, f"SQL refused by the guard: {', '.join(broken)}")
     else:
-        yield Check("Golden trios", Status.OK, f"{len(trios)} trios")
+        probation = sum(t.status == "probation" for t in trios)
+        detail = f"{len(trios)} trios" + (
+            f" ({probation} on probation, approved automatically)" if probation else ""
+        )
+        yield Check("Golden trios", Status.OK, detail)
+    try:
+        glossary = load_glossary(settings.glossary_path)
+        yield Check("Glossary", Status.OK, f"{len(glossary.metrics)} metrics, version {glossary.version}")
+    except ConfigFileError as exc:
+        yield Check("Glossary", Status.FAIL, str(exc))
 
 
 def _storage_check(settings: Settings) -> Check:

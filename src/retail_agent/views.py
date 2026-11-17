@@ -150,7 +150,13 @@ def _describe(event: dict[str, Any]) -> str:
         return f"[bold]input guard[/]  {status} ({escape(str(data.get('category')))}"\
                + (f", rule {escape(str(data.get('rule')))})" if data.get("rule") else ")")  # fmt: skip
     if kind == "retrieval":
-        trios = ", ".join(f"{t['id']} {t['score']}" for t in data.get("trios", [])) or "none"
+        trios = (
+            ", ".join(
+                f"{t['id']}{' (probation)' if t.get('probation') else ''} {t['score']}"
+                for t in data.get("trios", [])
+            )
+            or "none"
+        )
         error = f" · fallback reason: {escape(data['error'][:80])}" if data.get("error") else ""
         return f"[bold]examples[/]     {name}: {escape(trios)}{error}"
     if kind == "llm_call":

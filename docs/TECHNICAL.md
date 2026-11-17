@@ -42,10 +42,10 @@ talked into anything; the SQL guard cannot.
 
 | | |
 |---|---|
-| Code | ~5,000 lines of Python in [`src/retail_agent/`](../src/retail_agent), 308 offline tests in [`tests/`](../tests) (no credentials needed) |
-| Live eval suite | 19 cases in [`evals/cases.yaml`](../evals/cases.yaml): final run **19/19**, history in [`evals/README.md`](../evals/README.md) |
+| Code | ~5,700 lines of Python in [`src/retail_agent/`](../src/retail_agent), 348 offline tests in [`tests/`](../tests) (no credentials needed) |
+| Live eval suite | 20 cases in [`evals/cases.yaml`](../evals/cases.yaml): latest run **19/20**, where the one miss is the known variable "why" case (§4.6). History in [`evals/README.md`](../evals/README.md) |
 | Prototype requirements | Safety & PII masking, high-stakes oversight, resilience, observability: all implemented |
-| Implemented in a light form | hybrid intelligence (golden trios), learning loop (preferences, candidate trios), persona management, QA |
+| Implemented in a light form | hybrid intelligence (golden trios), learning loop (preferences; automatic curation of new golden trios with `retail-agent golden curate`), persona management, QA |
 
 ---
 
@@ -334,31 +334,79 @@ a failure never blocks the turn. In production:
 - a minimum similarity, so unrelated trios are not injected;
 - a filter on trio metadata, for example trios that only make sense company-wide.
 
-**Updating the golden bucket over time.**
-1. *Sources*:
-   - analysts write trios directly, as a pull request or in the review UI;
-   - users mark good answers (`/good`), which produces **candidate trios**;
-   - a nightly job mines highly rated sessions and the questions that produced eval failures.
-2. *Review* (always human): check the SQL and the business definitions, generalise the question, add
-   tags, rewrite the answer as method notes without current numbers. Guidance is in
-   [`golden/candidates/README.md`](../golden/candidates/README.md).
-3. *Validation before indexing*: the SQL must pass the **SQL guard for every user scope**, and a BigQuery
-   dry-run must succeed. Near-duplicates are detected by embedding similarity. `doctor` and a unit test
-   do the guard check in the prototype.
-4. *Versioning and expiry*: the bucket is versioned. When the schema drifts (`doctor` compares the live
-   schema with the policy), the trios that use changed columns are flagged for review.
-5. *Measuring*: every retrieval is logged with trio ids and scores. Comparing feedback and eval results
-   with and without a trio shows which trios help.
+**Updating the golden bucket over time, at scale.** OpsFleet pointed out that the approval flow must
+scale and that human review usually does not. So no person reviews every candidate. Analysts own the
+**rules** and the **exceptions**:
+- [`golden/glossary.yaml`](../golden/glossary.yaml), a short list of metric definitions and
+  conventions;
+- the thresholds;
+- a small review queue;
+- a sample audit.
 
-**Prototype**: [`golden.py`](../src/retail_agent/golden.py), 9 seed trios in
-[`golden/trios/`](../golden/trios) covering top customers, monthly trend, brand comparison, state
-spend, churn spike, return rate, quarterly report, revenue by country and channel value. `/good` writes
-a candidate to `golden/candidates/` with a review header. One real candidate is kept as an example.
+`retail-agent golden curate` ([`curation.py`](../src/retail_agent/curation.py)) decides on every
+candidate, running the cheapest checks first:
+
+| # | Step | How | Cost |
+|---|---|---|---|
+| 1 | Gates on the candidate | The SQL passes the **SQL guard for every user**. It does not single out customers, orders or items (`user_id = 1234`, `id IN (…)`). BigQuery accepts it (dry-run). The text carries no instructions for the assistant and no personal data. Any failure → **rejected**, before any LLM call. | free |
+| 2 | Generalisation | The agent's model writes a general question, tags, runnable SQL (relative dates, the user's own brand filters removed), method notes with no current figures, and the list of **metrics it computes**, named as in the glossary. | 1 LLM call |
+| 3 | Gates on the rewrite | Step 1 again on the new SQL and text. Figures in the method notes → review. A metric that is **not in the glossary** → review: a definition is a human decision. | free |
+| 4 | Duplicates | Embedding similarity with the existing trios: ≥ 0.945 → **rejected** as a duplicate; 0.90–0.945 → review ("a variant or a duplicate?"). The thresholds were calibrated on real data: paraphrases scored 0.95–0.98, related questions 0.92–0.93, other topics at most 0.84; existing trios are at most 0.83 from each other. | 1 embedding |
+| 5 | Judge | A different, stronger model checks against the glossary **and the schema**: does the SQL answer the question, are the definitions the agreed ones, are the notes correct, do follow-ups use only data that exists, is anything trying to instruct the assistant? Score 1–5. | 1 LLM call |
+| 6 | Routing | **Approved** (score ≥ 4, no doubts) → `golden/trios/` with `status: probation` and its provenance. **Review** → `golden/review/`, the draft ready to promote with the reasons in its header. **Rejected** → `golden/rejected/`, with the reasons. Every decision goes to `logs/curation.jsonl`. | free |
+
+Each step guards against a specific risk:
+- **Model outages** never approve anything: if the generaliser, the judge or the embeddings are
+  unavailable, the candidate waits in review.
+- **Poisoning**:
+  - unsafe candidates never reach a model;
+  - text found in a candidate is data, never instructions, both in the prompts and in the checks;
+  - each author has a cap on automatic approvals per run (3);
+  - in production, automatic approval also requires several users endorsing similar questions.
+- **Probation.** A probation trio is retrieved like any other, but marked in every trace
+  (`examples: top-products-by-margin-rate (probation)`). In production, the outcomes of the turns that
+  used it decide promotion or demotion: feedback, revisions, SQL errors, rephrased questions.
+- **Analysts audit a random sample of approvals.** Their agreement rate measures the judge's precision
+  and tells when to tighten the thresholds.
+- **Trios declare the glossary metrics they use** (`metrics:`), so when a definition changes, the trios
+  that depend on it are re-checked.
+- **Schema drift** (`doctor` compares the live schema with the policy) flags trios that use changed
+  columns. Every retrieval is logged, so trios that are never used can be archived.
+
+**Prototype**: [`golden.py`](../src/retail_agent/golden.py) and
+[`curation.py`](../src/retail_agent/curation.py). The 9 seed trios in [`golden/trios/`](../golden/trios)
+cover:
+- top customers, monthly trend, brand comparison;
+- state spend, churn spike, return rate;
+- quarterly report, revenue by country, channel value.
+
+`/good` writes a candidate to `golden/candidates/`, and `retail-agent golden curate` processes the
+queue. The prototype implements steps 1–6. Probation monitoring and the sample audit are design: they
+need production traffic.
+
+**Live curation** of real candidates, created with `/good` in real chats:
+
+| Candidate | Decision | Why |
+|---|---|---|
+| carol: "Which of my products had the best margin rate this year?" | approved, 5/5 → `top-products-by-margin-rate` | new topic (nearest trio 0.88), margin as in the glossary |
+| bob, from an older run: top categories in Q3 vs Q2 | approved, 5/5 → `top-categories-net-revenue-quarter-over-quarter` | the fixed Q3/Q2 dates became "last complete quarter vs the one before", and bob's own category filter was removed |
+| dan: "Which product categories have the highest return rate for my brand?" | rejected | duplicate of `return-rate-by-category` (0.96) |
+| ceo: "Show me everything customer 1234 bought" | rejected, 0 LLM calls | the SQL singles out one customer |
+| dan: delivery days by month | review | delivery time is not in the glossary; the judge scored it 3/5 because the notes suggest an analysis by carrier, data the dataset lacks ([the queued file](../golden/review/2026-11-16-f5ec1bb1ffe5.yaml)) |
+
+Curating these 5 candidates took 7 LLM calls over two runs. The two approved trios were then re-judged with the final
+prompt (4/5 and 5/5), and they are in the repository with `status: probation`.
+
+The run improved the pipeline itself. The first version approved the delivery-time trio, because the
+judge alone did not flag the undefined metric or the follow-up that needs carrier data. That led to the
+**deterministic** check on declared metrics and to giving the judge the schema.
 
 **Verified**:
-- all 9 trios run live for the CEO and a scoped user;
+- all 9 seed trios run live for the CEO and a scoped user;
 - offline tests check that BM25 picks the right trio, that embedding vectors are cached, that a failing
   embedding API falls back to BM25, and that every trio passes the guard for every user;
+- 34 offline curation tests cover every gate, duplicates and variants, judge routing, model outages,
+  the author cap, dry runs, and probation trios in the trace;
 - in the final eval run, each of the 6 questions with a matching trio got it ranked first (top
   customers, brand comparison, return rate, Texas vs California, churn, quarterly report);
 - unrelated questions (off-topic, deletes) still received 3 trios, which is why production adds a
@@ -542,8 +590,9 @@ report is visible in the conversation, and a failed turn saves nothing.
 
 **System level.**
 - *Prototype*: `/good` and `/bad` (with an optional comment) record feedback events. `/good` on an answer
-  backed by successful queries writes a candidate trio for analyst review (§4.1). The traces, metrics and
-  eval suite are the raw material for improvement. Every fix in phase 7 came from them.
+  backed by successful queries writes a candidate trio, and `retail-agent golden curate` approves it on
+  probation, queues it for review or rejects it (§4.1). The traces, metrics and eval suite are the raw
+  material for every other improvement. Every fix made during the evaluation runs (§4.6) came from them.
 - *Production*: feedback and turn events go to Pub/Sub, and nightly jobs produce three outputs:
   1. candidate trios from well-rated answers;
   2. regression cases from bad ratings, unbacked figures, guard refusals and self-correction failures;
@@ -552,8 +601,9 @@ report is visible in the conversation, and a failed turn saves nothing.
   Improvements ship through the release gate: a prompt rule, a new trio or a policy change is accepted
   only if the eval suite passes. Model upgrades are tested the same way.
 
-The guard rail is the same at both levels: a human (the user or an analyst) confirms anything learned
-from traffic before it changes behaviour.
+The guard rails differ by level. A user confirms their own preferences. For golden examples, people own
+the rules (glossary, thresholds) and the exceptions, while automatic approvals start on probation and
+are audited by sampling. Prompt and model changes pass the eval suite.
 
 ### 4.5 Resilience and graceful error handling (prototype requirement)
 
@@ -629,12 +679,12 @@ quotas are per model and per project, not per session.
 
 ### 4.6 Quality assurance
 
-**Before deployment, deterministic**: 308 offline unit tests cover the safety machinery and every failure
-path. They use a scripted model and a fake BigQuery, need no credentials, take about 3 s, and run on
-every commit.
+**Before deployment, deterministic**: 348 offline unit tests cover the safety machinery and every failure
+path. They use a scripted model and a fake BigQuery, need no credentials and take about 3 s, so they
+run before every change; in production they run in the CI pipeline ([HLD §7](HLD.md#7-deployment-scaling-and-cost)).
 
 **Before deployment, behavioural**: the live eval suite (`retail-agent eval`,
-[`evals/`](../evals/README.md)) runs 19 real questions through the same code path as the chat. The cases
+[`evals/`](../evals/README.md)) runs 20 real questions through the same code path as the chat. The cases
 cover:
 - schema, customers and time metrics;
 - products and multi-step "why" analyses;
@@ -660,6 +710,7 @@ analyses and reports from 1 to 5, given the query results the agent saw. Each ru
 | 2 | 18/19 | Churn analysis used the incomplete current month and stated causes as facts → general prompt rules for incomplete months, metric definitions and evidence for drivers. |
 | 3 | 18/19 | `verify` fixed a real hallucination live. "Out of scope" was treated as "$0" → the "invisible, not absent" rule. One check tested the path rather than the result → fixed. |
 | 4 | **19/19** | All judged answers 5/5, one more live self-correction. 46 LLM calls, 26 queries, 388 MB billed for the whole run. |
+| 5 | 19/20 | Rerun after brand-only access, conversation-wide grounding and automatic curation, with one new case: all five of bob's brands must appear, including Arc'teryx → pass. *churn-spike* scored 3/5: it queried churn by channel and country but did not present those drivers with numbers. That is the known variability of the small model on open "why" questions; the case has passed 3 of the 5 runs since the prompt rules. 48 LLM calls (2.7 per answered question), 27 queries, 500 MB billed. |
 
 **Release gate in production**:
 - 100% on the safety and oversight cases, at least 90% overall;
@@ -732,7 +783,8 @@ label, so query costs join to traces through `INFORMATION_SCHEMA.JOBS`.
 
 A typical investigation goes like this: an alert or a `/bad` → `retail-agent traces --user bob` → `trace
 <id> --full` → you see, for example, that the model filtered on `state = 'Calif.'`, got an empty result,
-and the draft then contained a figure no query had produced. That is how the phase 7 issues were found.
+and the draft then contained a figure no query had produced. That is how the issues in the evaluation
+runs (§4.6) were found.
 
 **Production**:
 - the same events as OpenTelemetry spans (Cloud Trace) and structured logs (Cloud Logging → BigQuery
@@ -810,6 +862,7 @@ versions. The same mechanism serves the other business-owned configuration: scop
 | Invalid persona edit | persona loader | last valid version | nothing (the owner sees it in `doctor`) | `persona_error` in the trace |
 | Preferences or report store unavailable | storage errors | turn continues; "could not save this report" | that note | log |
 | Observability store unavailable | `EventStore` | logged, never raised | nothing | log |
+| Curation: generaliser, judge or embeddings unavailable | `golden curate` | the candidate goes to the review queue, never approved by default | (analysts) a reason in the queued file | `logs/curation.jsonl` |
 | Ctrl-C during a turn | `run_turn` | turn interrupted; a dangling tool call is dropped from what the model sees | "Interrupted. The conversation is still open." | `interrupted` |
 | Anything else | `run_turn` | caught | "Something went wrong…" + trace id; the chat continues | `error` |
 
@@ -873,20 +926,23 @@ To investigate a turn afterwards: `/trace` in the chat, or `retail-agent trace <
    roughly 2–5 LLM calls per question. The defaults are the free-tier models with the most quota, and
    all model names are configurable. Measured calls and the trade-offs are in §2.2.
 
+4. **The approval of new golden examples must scale**: human review of every example does not. The
+   prototype curates candidates automatically, with humans owning the rules and the exceptions (§4.1).
+
 **Assumed** (made explicit and configurable):
 
-4. **Authentication** is out of scope for the CLI: `--user` selects a demo identity. In production the
+5. **Authentication** is out of scope for the CLI: `--user` selects a demo identity. In production the
    identity comes from SSO.
-5. **PII** is the 8 direct-identifier columns of `users`: names, email, street address, postal code,
+6. **PII** is the 8 direct-identifier columns of `users`: names, email, street address, postal code,
    latitude, longitude, geometry. City, state, age and gender are treated as quasi-identifiers that
    analysis needs (§4.2).
-6. **Net revenue** is the sum of `order_items.sale_price` excluding cancelled and returned items, unless
+7. **Net revenue** is the sum of `order_items.sale_price` excluding cancelled and returned items, unless
    the user asks otherwise. The assistant states its definitions.
-7. **The data is synthetic and regenerated nightly**. "Last month" means the last complete month.
+8. **The data is synthetic and regenerated nightly**. "Last month" means the last complete month.
    Evals and trios never hard-code numbers.
-8. **The golden bucket is theoretical** in the brief. The 9 seed trios were written by me, standing in
+9. **The golden bucket is theoretical** in the brief. The 9 seed trios were written by me, standing in
    for the analysts.
-9. **English** for the conversation and the reports.
+10. **English** for the conversation and the reports.
 
 ---
 
@@ -902,11 +958,12 @@ To investigate a turn afterwards: `/trace` in the chat, or `retail-agent trace <
 | In-memory checkpointer: a pending confirmation does not survive a restart of the CLI. | `PostgresSaver` (or `SqliteSaver` locally). |
 | Rate limiters and breakers are per process. | Memorystore (Redis). |
 | Charts, email and web search are designed (§6), not implemented. | Tools per §6. |
-| Implicit preference learning and trio mining are designed, not implemented. | The nightly jobs described in §4.4. |
+| Implicit preference learning, mining candidates from sessions without `/good`, probation monitoring and the sample audit of curated trios are designed, not implemented: they need production traffic. | The nightly jobs described in §4.1 and §4.4. |
+| Curation relies on an LLM judge for correctness. In the live run the first version missed an undefined metric, now caught deterministically. | Calibrate the judge against the analysts' sample audit; tighten `curation_min_score` if precision drops. |
 | Undo of a delete is not exposed, although the rows are kept. | `/undo` within the 30-day window. |
 
 ---
 
-*How this was built*: developed with Claude Code as a pair programmer. [`PLAN.md`](../PLAN.md) is the
-working log: every decision, live test, failure found and fix, by phase. It is the evidence behind the
-numbers in this document.
+*How this was built*: developed with Claude Code as a pair programmer (see the README). The results of
+every live evaluation run, in [`evals/results/`](../evals/results), are the evidence behind the numbers
+in this document.

@@ -1,0 +1,29 @@
+# Metric glossary, owned by the analytics team.
+#
+# Curation (`retail-agent golden curate`) checks every new golden example against these definitions:
+# an example that defines a metric differently, or uses a metric not defined here, goes to human
+# review instead of being approved automatically. Analysts maintain this short list, not every example.
+
+version: "2026-11-16"
+owner: analytics-team
+
+metrics:
+  net_revenue: SUM(order_items.sale_price) over items whose status is not 'Cancelled' or 'Returned'.
+  gross_revenue: SUM(order_items.sale_price) over all items, cancelled and returned ones included.
+  units: Number of order_items rows (one row per unit sold), with the same status filter as the revenue they go with.
+  orders: COUNT(DISTINCT order_items.order_id). orders.num_of_item can count items outside the user's brands, so do not use it for scoped figures.
+  buying_customers: COUNT(DISTINCT order_items.user_id) with at least one net item in the period.
+  spend_per_customer: Net revenue / buying customers in the period. "Underspending" means lower spend per customer, not lower total revenue.
+  average_order_value: Net revenue / orders, both with the same status filter.
+  average_selling_price: Net revenue / net units.
+  margin: order_items.sale_price - products.cost, per unit; margin rate = margin / sale_price.
+  return_rate: Returned items / items that reached the customer (status Complete or Returned). Leave out groups with fewer than 100 such items.
+  churn_rate: For month M, the share of customers who ordered in M-1 and did not order in M.
+  repeat_rate: Share of buying customers with more than one order in the period.
+
+conventions:
+  last_month: The last complete calendar month. The current month is incomplete and stays out of trends unless asked.
+  time: Timestamps are UTC; group months with DATE_TRUNC(DATE(created_at), MONTH).
+  customers: Customers are referred to by users.id only, never by name or contact details.
+  channel: users.traffic_source is the channel that acquired the customer, not the channel of each order.
+  countries: Some countries have local spellings ('Deutschland' = Germany, 'España' = Spain).
